@@ -14,7 +14,19 @@ target_link_libraries(test_entity PRIVATE dod_core GTest::gtest_main)
 add_executable(test_world test_world.cpp)
 target_link_libraries(test_world PRIVATE dod_core GTest::gtest_main)
 
+add_executable(test_query test_query.cpp)
+target_link_libraries(test_query PRIVATE dod_core GTest::gtest_main)
+
+add_executable(test_system_traits test_system_traits.cpp)
+target_link_libraries(test_system_traits PRIVATE dod_core GTest::gtest_main)
+
+add_executable(test_system test_system.cpp)
+target_link_libraries(test_system PRIVATE dod_core GTest::gtest_main)
+
 # ── Register with CTest ──────────────────────────────────────
 include(GoogleTest)
 gtest_discover_tests(test_entity)
 gtest_discover_tests(test_world)
+gtest_discover_tests(test_query)
+gtest_discover_tests(test_system_traits)
+gtest_discover_tests(test_system)

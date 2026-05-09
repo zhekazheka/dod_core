@@ -28,7 +28,8 @@ class World
     // ── Component operations ────────────────────────────────
     template <typename T, typename... Args> decltype(auto) emplace(Entity entity, Args&&... args)
     {
-        return m_registry.emplace<T>(static_cast<entt::entity>(entity), std::forward<Args>(args)...);
+        return m_registry.emplace<T>(static_cast<entt::entity>(entity),
+                                     std::forward<Args>(args)...);
     }
 
     template <typename T> void remove(Entity entity)

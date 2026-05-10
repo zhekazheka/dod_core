@@ -13,7 +13,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(EnTT)
 
 # ── Library ───────────────────────────────────────────────────
-add_library(dod_core STATIC src/world.cpp)
+add_library(dod_core STATIC src/world.cpp src/system_graph.cpp)
 add_library(dod::dod_core ALIAS dod_core)
 
 target_compile_features(dod_core PUBLIC cxx_std_20)

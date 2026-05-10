@@ -1,6 +1,6 @@
 #include <dod_core/system.hpp>
+#include <entt/core/type_info.hpp>
 #include <gtest/gtest.h>
-#include <typeindex>
 
 struct Position
 {
@@ -24,7 +24,7 @@ TEST(System, ExtractsReadAccess)
     dod::System sys{"reader", [](dod::Read<Position>) {}};
     EXPECT_EQ(sys.access().reads.size(), 1u);
     EXPECT_EQ(sys.access().writes.size(), 0u);
-    EXPECT_EQ(sys.access().reads[0], std::type_index(typeid(Position)));
+    EXPECT_EQ(sys.access().reads[0], entt::type_hash<Position>::value());
     EXPECT_FALSE(sys.access().world_read);
     EXPECT_FALSE(sys.access().world_write);
 }
@@ -34,7 +34,7 @@ TEST(System, ExtractsWriteAccess)
     dod::System sys{"writer", [](dod::Write<Velocity>) {}};
     EXPECT_EQ(sys.access().reads.size(), 0u);
     EXPECT_EQ(sys.access().writes.size(), 1u);
-    EXPECT_EQ(sys.access().writes[0], std::type_index(typeid(Velocity)));
+    EXPECT_EQ(sys.access().writes[0], entt::type_hash<Velocity>::value());
 }
 
 TEST(System, ExtractsMixedAccess)

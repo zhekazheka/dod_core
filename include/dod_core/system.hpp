@@ -2,9 +2,9 @@
 
 #include <dod_core/system_traits.hpp>
 #include <dod_core/world.hpp>
+#include <entt/core/type_info.hpp>
 #include <functional>
 #include <string>
-#include <typeindex>
 #include <utility>
 #include <vector>
 
@@ -13,8 +13,8 @@ namespace dod
 
 struct ResourceAccess
 {
-    std::vector<std::type_index> reads;
-    std::vector<std::type_index> writes;
+    std::vector<entt::id_type> reads;
+    std::vector<entt::id_type> writes;
     bool world_read = false;
     bool world_write = false;
 };
@@ -50,11 +50,11 @@ class System
         using kind = detail::query_kind<Param>;
         if constexpr (kind::is_read)
         {
-            access.reads.emplace_back(typeid(typename kind::component));
+            access.reads.emplace_back(entt::type_hash<typename kind::component>::value());
         }
         else if constexpr (kind::is_write)
         {
-            access.writes.emplace_back(typeid(typename kind::component));
+            access.writes.emplace_back(entt::type_hash<typename kind::component>::value());
         }
         else if constexpr (kind::is_world_read)
         {

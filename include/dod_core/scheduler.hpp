@@ -9,6 +9,18 @@
 namespace dod
 {
 
+namespace detail
+{
+
+// Runs every system in `graph` exactly once through `pool`, respecting edges.
+// `counters` must already be sized to graph.size(); it is rewritten on entry.
+// Blocks until all in-flight tasks finish. If any system throws, rethrows the
+// first exception after the wait completes.
+void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
+                    std::vector<std::atomic<std::size_t>>& counters);
+
+} // namespace detail
+
 class Scheduler
 {
   public:

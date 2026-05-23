@@ -32,6 +32,12 @@ target_link_libraries(test_thread_pool PRIVATE dod_core GTest::gtest_main)
 add_executable(test_scheduler test_scheduler.cpp)
 target_link_libraries(test_scheduler PRIVATE dod_core GTest::gtest_main)
 
+add_executable(test_phase test_phase.cpp)
+target_link_libraries(test_phase PRIVATE dod_core GTest::gtest_main)
+
+add_executable(test_integration test_integration.cpp)
+target_link_libraries(test_integration PRIVATE dod_core GTest::gtest_main)
+
 # ── Register with CTest ──────────────────────────────────────
 include(GoogleTest)
 gtest_discover_tests(test_entity)
@@ -42,3 +48,5 @@ gtest_discover_tests(test_system)
 gtest_discover_tests(test_system_graph)
 gtest_discover_tests(test_thread_pool)
 gtest_discover_tests(test_scheduler)
+gtest_discover_tests(test_phase)
+gtest_discover_tests(test_integration)

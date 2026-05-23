@@ -18,6 +18,7 @@ add_library(dod_core STATIC
     src/system_graph.cpp
     src/thread_pool.cpp
     src/scheduler.cpp
+    src/phase.cpp
 )
 add_library(dod::dod_core ALIAS dod_core)
 

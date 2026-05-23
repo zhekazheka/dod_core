@@ -26,7 +26,16 @@ std::size_t Scheduler::default_worker_count() noexcept
 
 void Scheduler::run(World& world)
 {
-    const std::size_t n = m_graph.size();
+    detail::dispatch_graph(m_graph, world, m_pool, m_remaining);
+}
+
+namespace detail
+{
+
+void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
+                    std::vector<std::atomic<std::size_t>>& counters)
+{
+    const std::size_t n = graph.size();
     if (n == 0)
     {
         return;
@@ -35,7 +44,7 @@ void Scheduler::run(World& world)
     // Reset per-node counters from the graph's static dependency counts.
     for (NodeId i = 0; i < n; ++i)
     {
-        m_remaining[i].store(m_graph.dependency_count(i), std::memory_order_relaxed);
+        counters[i].store(graph.dependency_count(i), std::memory_order_relaxed);
     }
 
     std::latch done{static_cast<std::ptrdiff_t>(n)};
@@ -43,13 +52,13 @@ void Scheduler::run(World& world)
     std::mutex exc_mutex;
 
     // Recursive dispatch lambda. Captured by reference; lifetime extends until
-    // run() returns, which only happens after the latch fully resolves.
+    // this function returns, which only happens after the latch fully resolves.
     std::function<void(NodeId)> dispatch;
     dispatch = [&](NodeId id)
     {
         try
         {
-            m_graph.system(id)(world);
+            graph.system(id)(world);
         }
         catch (...)
         {
@@ -62,19 +71,19 @@ void Scheduler::run(World& world)
 
         // Advance the graph regardless of failure to avoid deadlocking the
         // latch on a partially-completed run.
-        for (NodeId dep : m_graph.dependents(id))
+        for (NodeId dep : graph.dependents(id))
         {
-            if (m_remaining[dep].fetch_sub(1, std::memory_order_acq_rel) == 1)
+            if (counters[dep].fetch_sub(1, std::memory_order_acq_rel) == 1)
             {
-                m_pool.submit_detached([&dispatch, dep]() { dispatch(dep); });
+                pool.submit_detached([&dispatch, dep]() { dispatch(dep); });
             }
         }
         done.count_down();
     };
 
-    for (NodeId root : m_graph.roots())
+    for (NodeId root : graph.roots())
     {
-        m_pool.submit_detached([&dispatch, root]() { dispatch(root); });
+        pool.submit_detached([&dispatch, root]() { dispatch(root); });
     }
 
     done.wait();
@@ -84,5 +93,7 @@ void Scheduler::run(World& world)
         std::rethrow_exception(first_exception);
     }
 }
+
+} // namespace detail
 
 } // namespace dod

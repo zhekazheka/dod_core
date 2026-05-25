@@ -15,6 +15,26 @@ bool contains(const std::vector<entt::id_type>& haystack, entt::id_type needle) 
 
 } // namespace
 
+SystemGraph::SystemGraph(SystemGraph&& other) noexcept
+    : m_nodes{std::move(other.m_nodes)}, m_explicit_edges{std::move(other.m_explicit_edges)},
+      m_roots{std::move(other.m_roots)}, m_built{other.m_built}
+{
+    other.m_built = false;
+}
+
+SystemGraph& SystemGraph::operator=(SystemGraph&& other) noexcept
+{
+    if (this != &other)
+    {
+        m_nodes = std::move(other.m_nodes);
+        m_explicit_edges = std::move(other.m_explicit_edges);
+        m_roots = std::move(other.m_roots);
+        m_built = other.m_built;
+        other.m_built = false;
+    }
+    return *this;
+}
+
 NodeId SystemGraph::add_system(System system)
 {
     if (m_built)

@@ -280,6 +280,31 @@ TEST(SystemGraph, EmptyGraphBuildsCleanly)
 
 // ── Movability ──────────────────────────────────────────────
 
+TEST(SystemGraph, MovedFromGraphReportsUnbuilt)
+{
+    dod::SystemGraph src;
+    src.add_system(dod::System{"a", []() {}});
+    src.build();
+    ASSERT_TRUE(src.built());
+
+    dod::SystemGraph dst = std::move(src);
+    EXPECT_TRUE(dst.built());
+    EXPECT_FALSE(src.built()); // NOLINT(bugprone-use-after-move)
+    EXPECT_EQ(src.size(), 0u);  // NOLINT(bugprone-use-after-move)
+}
+
+TEST(SystemGraph, MoveAssignmentResetsSourceBuiltFlag)
+{
+    dod::SystemGraph src;
+    src.add_system(dod::System{"a", []() {}});
+    src.build();
+
+    dod::SystemGraph dst;
+    dst = std::move(src);
+    EXPECT_TRUE(dst.built());
+    EXPECT_FALSE(src.built()); // NOLINT(bugprone-use-after-move)
+}
+
 TEST(SystemGraph, MovableAfterBuild)
 {
     dod::SystemGraph g1;

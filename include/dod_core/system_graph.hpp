@@ -17,8 +17,13 @@ class SystemGraph
 
     SystemGraph(const SystemGraph&) = delete;
     SystemGraph& operator=(const SystemGraph&) = delete;
-    SystemGraph(SystemGraph&&) noexcept = default;
-    SystemGraph& operator=(SystemGraph&&) noexcept = default;
+
+    // Custom move ops: defaulted move would memberwise-copy the m_built bool,
+    // leaving the moved-from graph reporting built()==true with an empty node
+    // set. We reset m_built to false on the source so moved-from graphs report
+    // their actual (unbuilt, empty) state.
+    SystemGraph(SystemGraph&& other) noexcept;
+    SystemGraph& operator=(SystemGraph&& other) noexcept;
 
     // Add a system to the graph. Returns its NodeId. Must be called before build().
     NodeId add_system(System system);

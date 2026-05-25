@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <dod_core/system_graph.hpp>
 #include <gtest/gtest.h>
-#include <stdexcept>
 
 struct Position
 {
@@ -52,7 +51,7 @@ TEST(SystemGraph, AccessSystemByNodeId)
 TEST(SystemGraph, InvalidNodeIdThrows)
 {
     dod::SystemGraph g;
-    EXPECT_THROW({ (void)g.system(99); }, std::out_of_range);
+    EXPECT_DEATH({ (void)g.system(99); }, ".*");
 }
 
 // ── Conflict detection ──────────────────────────────────────
@@ -190,14 +189,14 @@ TEST(SystemGraph, OrderBeforeOnSelfThrows)
 {
     dod::SystemGraph g;
     auto a = g.add_system(dod::System{"a", []() {}});
-    EXPECT_THROW({ g.order_before(a, a); }, std::logic_error);
+    EXPECT_DEATH({ g.order_before(a, a); }, ".*");
 }
 
 TEST(SystemGraph, OrderBeforeWithInvalidIdThrows)
 {
     dod::SystemGraph g;
     auto a = g.add_system(dod::System{"a", []() {}});
-    EXPECT_THROW({ g.order_before(a, 99); }, std::out_of_range);
+    EXPECT_DEATH({ g.order_before(a, 99); }, ".*");
 }
 
 TEST(SystemGraph, ExplicitEdgeOverridesRegistrationOrder)
@@ -225,7 +224,7 @@ TEST(SystemGraph, ContradictingExplicitEdgesThrow)
     auto b = g.add_system(dod::System{"b", []() {}});
     g.order_before(a, b);
     g.order_before(b, a);
-    EXPECT_THROW({ g.build(); }, std::runtime_error);
+    EXPECT_DEATH({ g.build(); }, ".*");
 }
 
 TEST(SystemGraph, CycleViaExplicitEdgesThrows)
@@ -238,7 +237,7 @@ TEST(SystemGraph, CycleViaExplicitEdgesThrows)
     g.order_before(b, c);
     g.order_before(c, a);
 
-    EXPECT_THROW({ g.build(); }, std::runtime_error);
+    EXPECT_DEATH({ g.build(); }, ".*");
 }
 
 // ── Build state ─────────────────────────────────────────────
@@ -247,7 +246,7 @@ TEST(SystemGraph, AddSystemAfterBuildThrows)
 {
     dod::SystemGraph g;
     g.build();
-    EXPECT_THROW({ g.add_system(dod::System{"x", []() {}}); }, std::logic_error);
+    EXPECT_DEATH({ g.add_system(dod::System{"x", []() {}}); }, ".*");
 }
 
 TEST(SystemGraph, OrderBeforeAfterBuildThrows)
@@ -256,7 +255,7 @@ TEST(SystemGraph, OrderBeforeAfterBuildThrows)
     auto a = g.add_system(dod::System{"a", []() {}});
     auto b = g.add_system(dod::System{"b", []() {}});
     g.build();
-    EXPECT_THROW({ g.order_before(a, b); }, std::logic_error);
+    EXPECT_DEATH({ g.order_before(a, b); }, ".*");
 }
 
 TEST(SystemGraph, BuildIsIdempotent)

@@ -3,7 +3,6 @@
 #include <dod_core/scheduler.hpp>
 #include <gtest/gtest.h>
 #include <mutex>
-#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -43,7 +42,7 @@ TEST(Scheduler, ConstructionRejectsUnbuiltGraph)
 {
     dod::SystemGraph g;
     g.add_system(dod::System{"a", []() {}});
-    EXPECT_THROW({ dod::Scheduler s{std::move(g)}; }, std::logic_error);
+    EXPECT_DEATH({ dod::Scheduler s{std::move(g)}; }, ".*");
 }
 
 // ── Basic execution ─────────────────────────────────────────
@@ -182,37 +181,6 @@ TEST(Scheduler, IndependentSystemsRunInParallel)
 
     // Serial would take 160ms; parallel ~40ms. Generous slack for CI.
     EXPECT_LT(elapsed.count(), 130);
-}
-
-// ── Exception propagation ───────────────────────────────────
-
-TEST(Scheduler, ExceptionInSystemPropagates)
-{
-    dod::SystemGraph g;
-    g.add_system(dod::System{"throws", []() { throw std::runtime_error("boom"); }});
-    g.build();
-
-    dod::Scheduler s{std::move(g)};
-    dod::World world;
-    EXPECT_THROW({ s.run(world); }, std::runtime_error);
-}
-
-TEST(Scheduler, ExceptionStillCompletesAllSystems)
-{
-    std::atomic<int> ran{0};
-    dod::SystemGraph g;
-    g.add_system(dod::System{"throws", [&]()
-                             {
-                                 ran.fetch_add(1);
-                                 throw std::runtime_error("boom");
-                             }});
-    g.add_system(dod::System{"runs_too", [&]() { ran.fetch_add(1); }});
-    g.build();
-
-    dod::Scheduler s{std::move(g)};
-    dod::World world;
-    EXPECT_THROW({ s.run(world); }, std::runtime_error);
-    EXPECT_EQ(ran.load(), 2);
 }
 
 // ── Worker count ────────────────────────────────────────────

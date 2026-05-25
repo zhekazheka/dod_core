@@ -3,7 +3,6 @@
 #include <dod_core/phase.hpp>
 #include <gtest/gtest.h>
 #include <mutex>
-#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -42,7 +41,7 @@ TEST(Phase, RejectsUnbuiltGraph)
 {
     dod::SystemGraph g;
     g.add_system(dod::System{"a", []() {}});
-    EXPECT_THROW({ dod::Phase p("update", std::move(g)); }, std::logic_error);
+    EXPECT_DEATH({ dod::Phase p("update", std::move(g)); }, ".*");
 }
 
 TEST(Phase, Movable)
@@ -75,7 +74,7 @@ TEST(Schedule, AddPhaseIncrementsPhaseCount)
 TEST(Schedule, PhaseAccessOutOfRangeThrows)
 {
     dod::Schedule s;
-    EXPECT_THROW({ (void)s.phase(0); }, std::out_of_range);
+    EXPECT_DEATH({ (void)s.phase(0); }, ".*");
 }
 
 TEST(Schedule, RunsAllSystemsAcrossPhases)
@@ -157,27 +156,6 @@ TEST(Schedule, SystemsWithinPhaseRunInParallel)
 
     // 4 systems × 40ms serial = 160ms; parallel ≈ 40ms.
     EXPECT_LT(elapsed.count(), 130);
-}
-
-TEST(Schedule, ExceptionInPhaseSkipsSubsequentPhases)
-{
-    std::atomic<int> p2_ran{0};
-
-    dod::SystemGraph g1;
-    g1.add_system(dod::System{"throws", []() { throw std::runtime_error("boom"); }});
-    g1.build();
-
-    dod::SystemGraph g2;
-    g2.add_system(dod::System{"never", [&]() { p2_ran.fetch_add(1); }});
-    g2.build();
-
-    dod::Schedule s;
-    s.add_phase(dod::Phase{"first", std::move(g1)});
-    s.add_phase(dod::Phase{"second", std::move(g2)});
-
-    dod::World world;
-    EXPECT_THROW({ s.run(world); }, std::runtime_error);
-    EXPECT_EQ(p2_ran.load(), 0);
 }
 
 TEST(Schedule, MultipleRunsExecuteAllPhasesEachTime)

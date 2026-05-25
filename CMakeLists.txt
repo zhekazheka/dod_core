@@ -31,7 +31,7 @@ target_include_directories(dod_core PUBLIC
 
 target_link_libraries(dod_core PUBLIC EnTT::EnTT)
 
-target_compile_options(dod_core PUBLIC -fno-rtti)
+target_compile_options(dod_core PUBLIC -fno-rtti -fno-exceptions)
 
 target_compile_options(dod_core PRIVATE
     -Wall -Wextra -Wpedantic -Werror

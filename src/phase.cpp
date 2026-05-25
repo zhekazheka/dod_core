@@ -1,5 +1,6 @@
+#include <dod_core/assert.hpp>
 #include <dod_core/phase.hpp>
-#include <stdexcept>
+
 #include <thread>
 #include <utility>
 
@@ -9,10 +10,7 @@ namespace dod
 Phase::Phase(std::string name, SystemGraph graph)
     : m_name{std::move(name)}, m_graph{std::move(graph)}
 {
-    if (!m_graph.built())
-    {
-        throw std::logic_error("Phase: SystemGraph must be built() before construction");
-    }
+    DOD_ASSERT(m_graph.built(), "Phase: SystemGraph must be built() before construction");
 }
 
 Schedule::Entry::Entry(Phase p) : phase{std::move(p)}, counters(this->phase.graph().size()) {}
@@ -34,10 +32,7 @@ void Schedule::run(World& world)
 
 const Phase& Schedule::phase(std::size_t index) const
 {
-    if (index >= m_phases.size())
-    {
-        throw std::out_of_range("Schedule::phase: invalid index");
-    }
+    DOD_ASSERT(index < m_phases.size(), "Schedule::phase: invalid index");
     return m_phases[index].phase;
 }
 

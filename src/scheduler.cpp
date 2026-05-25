@@ -1,9 +1,8 @@
+#include <dod_core/assert.hpp>
 #include <dod_core/scheduler.hpp>
-#include <exception>
+
 #include <functional>
 #include <latch>
-#include <mutex>
-#include <stdexcept>
 #include <thread>
 
 namespace dod
@@ -12,10 +11,7 @@ namespace dod
 Scheduler::Scheduler(SystemGraph graph, std::size_t worker_count)
     : m_graph{std::move(graph)}, m_pool{worker_count}, m_remaining(m_graph.size())
 {
-    if (!m_graph.built())
-    {
-        throw std::logic_error("Scheduler: SystemGraph must be built() before construction");
-    }
+    DOD_ASSERT(m_graph.built(), "Scheduler: SystemGraph must be built() before construction");
 }
 
 std::size_t Scheduler::default_worker_count() noexcept
@@ -41,6 +37,8 @@ void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
         return;
     }
 
+    DOD_ASSERT(counters.size() >= n, "dispatch_graph: counters must be sized to graph.size()");
+
     // Reset per-node counters from the graph's static dependency counts.
     for (NodeId i = 0; i < n; ++i)
     {
@@ -48,29 +46,15 @@ void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
     }
 
     std::latch done{static_cast<std::ptrdiff_t>(n)};
-    std::exception_ptr first_exception;
-    std::mutex exc_mutex;
 
     // Recursive dispatch lambda. Captured by reference; lifetime extends until
     // this function returns, which only happens after the latch fully resolves.
+    // Systems must not throw — exceptions are disabled at the project level.
     std::function<void(NodeId)> dispatch;
     dispatch = [&](NodeId id)
     {
-        try
-        {
-            graph.system(id)(world);
-        }
-        catch (...)
-        {
-            std::lock_guard lock(exc_mutex);
-            if (!first_exception)
-            {
-                first_exception = std::current_exception();
-            }
-        }
+        graph.system(id)(world);
 
-        // Advance the graph regardless of failure to avoid deadlocking the
-        // latch on a partially-completed run.
         for (NodeId dep : graph.dependents(id))
         {
             if (counters[dep].fetch_sub(1, std::memory_order_acq_rel) == 1)
@@ -87,11 +71,6 @@ void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
     }
 
     done.wait();
-
-    if (first_exception)
-    {
-        std::rethrow_exception(first_exception);
-    }
 }
 
 } // namespace detail

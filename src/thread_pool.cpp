@@ -1,5 +1,6 @@
-#include <algorithm>
 #include <dod_core/thread_pool.hpp>
+
+#include <algorithm>
 #include <utility>
 
 namespace dod
@@ -27,18 +28,7 @@ ThreadPool::~ThreadPool()
     // jthread destructors auto-join.
 }
 
-std::future<void> ThreadPool::submit(std::function<void()> task)
-{
-    auto pt = std::make_shared<std::packaged_task<void()>>(std::move(task));
-    std::future<void> fut = pt->get_future();
-    enqueue([pt]() { (*pt)(); });
-    return fut;
-}
-
-void ThreadPool::submit_detached(std::function<void()> task)
-{
-    enqueue(std::move(task));
-}
+void ThreadPool::submit_detached(std::function<void()> task) { enqueue(std::move(task)); }
 
 std::size_t ThreadPool::default_worker_count() noexcept
 {
@@ -71,16 +61,8 @@ void ThreadPool::worker_loop(std::stop_token st)
             task = std::move(m_queue.front());
             m_queue.pop();
         }
-        try
-        {
-            task();
-        }
-        catch (...)
-        {
-            // Detached tasks have no future; swallow to keep the worker alive.
-            // submit() wraps tasks in packaged_task which captures exceptions
-            // into the future, so this only fires for submit_detached.
-        }
+        // Exceptions are disabled at the project level. Tasks must not throw.
+        task();
     }
 }
 

@@ -1,6 +1,6 @@
 #include <algorithm>
+#include <dod_core/assert.hpp>
 #include <dod_core/system_graph.hpp>
-#include <stdexcept>
 
 namespace dod
 {
@@ -37,10 +37,7 @@ SystemGraph& SystemGraph::operator=(SystemGraph&& other) noexcept
 
 NodeId SystemGraph::add_system(System system)
 {
-    if (m_built)
-    {
-        throw std::logic_error("SystemGraph::add_system called after build()");
-    }
+    DOD_ASSERT(!m_built, "SystemGraph::add_system called after build()");
     NodeId id = m_nodes.size();
     m_nodes.push_back(Node{std::move(system), {}, {}});
     return id;
@@ -48,16 +45,10 @@ NodeId SystemGraph::add_system(System system)
 
 void SystemGraph::order_before(NodeId before, NodeId after)
 {
-    if (m_built)
-    {
-        throw std::logic_error("SystemGraph::order_before called after build()");
-    }
+    DOD_ASSERT(!m_built, "SystemGraph::order_before called after build()");
     check_id(before);
     check_id(after);
-    if (before == after)
-    {
-        throw std::logic_error("SystemGraph::order_before: cannot order a node before itself");
-    }
+    DOD_ASSERT(before != after, "SystemGraph::order_before: cannot order a node before itself");
     m_explicit_edges.emplace_back(before, after);
 }
 
@@ -218,18 +209,12 @@ void SystemGraph::detect_cycles() const
         }
     }
 
-    if (processed != m_nodes.size())
-    {
-        throw std::runtime_error("SystemGraph contains a cycle");
-    }
+    DOD_ASSERT(processed == m_nodes.size(), "SystemGraph contains a cycle");
 }
 
 void SystemGraph::check_id(NodeId id) const
 {
-    if (id >= m_nodes.size())
-    {
-        throw std::out_of_range("SystemGraph: invalid NodeId");
-    }
+    DOD_ASSERT(id < m_nodes.size(), "SystemGraph: invalid NodeId");
 }
 
 } // namespace dod

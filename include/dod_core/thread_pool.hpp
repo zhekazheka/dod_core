@@ -3,7 +3,6 @@
 #include <condition_variable>
 #include <cstddef>
 #include <functional>
-#include <future>
 #include <mutex>
 #include <queue>
 #include <stop_token>
@@ -26,12 +25,8 @@ class ThreadPool
 
     [[nodiscard]] std::size_t worker_count() const noexcept { return m_workers.size(); }
 
-    // Submit a task and obtain a future. Exceptions thrown by the task are
-    // captured and surfaced through future.get().
-    [[nodiscard]] std::future<void> submit(std::function<void()> task);
-
-    // Fire-and-forget. Exceptions thrown by the task are swallowed (logging
-    // would be the next step; for now we keep workers alive on user errors).
+    // Fire-and-forget. Tasks must not throw — exceptions are disabled at the
+    // project level. A throwing task will call std::terminate.
     void submit_detached(std::function<void()> task);
 
   private:

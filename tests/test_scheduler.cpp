@@ -183,6 +183,36 @@ TEST(Scheduler, IndependentSystemsRunInParallel)
     EXPECT_LT(elapsed.count(), 130);
 }
 
+// Regression: parallel Write systems on a fresh world used to create their
+// component pools lazily inside workers, racing on the registry's pool map
+// (EnTT pool creation is not thread-safe). The scheduler must pre-create
+// every pool the graph touches before dispatching. The race itself is only
+// observable under TSan; this test pins the pre-creation behavior.
+TEST(Scheduler, PreCreatesComponentPoolsBeforeDispatch)
+{
+    struct FreshA
+    {
+        int v;
+    };
+    struct FreshB
+    {
+        int v;
+    };
+
+    dod::SystemGraph g;
+    g.add_system(dod::System{"a", [](dod::Write<FreshA> a) { a.each([](FreshA& c) { ++c.v; }); }});
+    g.add_system(dod::System{"b", [](dod::Read<FreshB>) {}});
+    g.build();
+
+    dod::Scheduler s{std::move(g), 4};
+    dod::World world; // fresh world: neither pool exists yet
+
+    s.run(world);
+
+    EXPECT_NE(world.registry().storage(entt::type_hash<FreshA>::value()), nullptr);
+    EXPECT_NE(world.registry().storage(entt::type_hash<FreshB>::value()), nullptr);
+}
+
 // ── Worker count ────────────────────────────────────────────
 
 TEST(Scheduler, WorkerCountForwardedToPool)

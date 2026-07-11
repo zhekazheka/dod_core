@@ -62,6 +62,7 @@ template <typename T> struct query_kind<Read<T>>
     static constexpr bool is_world_write = false;
 
     static Read<T> construct(World& world) { return Read<T>{world}; }
+    static void prepare(World& world) { world.registry().storage<T>(); }
 };
 
 template <typename T> struct query_kind<Write<T>>
@@ -73,6 +74,7 @@ template <typename T> struct query_kind<Write<T>>
     static constexpr bool is_world_write = false;
 
     static Write<T> construct(World& world) { return Write<T>{world}; }
+    static void prepare(World& world) { world.registry().storage<T>(); }
 };
 
 template <> struct query_kind<WorldRead>
@@ -83,6 +85,7 @@ template <> struct query_kind<WorldRead>
     static constexpr bool is_world_write = false;
 
     static WorldRead construct(World& world) { return WorldRead{world}; }
+    static void prepare(World&) {}
 };
 
 template <> struct query_kind<WorldWrite>
@@ -93,6 +96,7 @@ template <> struct query_kind<WorldWrite>
     static constexpr bool is_world_write = true;
 
     static WorldWrite construct(World& world) { return WorldWrite{world}; }
+    static void prepare(World&) {}
 };
 
 } // namespace detail

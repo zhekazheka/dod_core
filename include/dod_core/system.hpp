@@ -29,11 +29,20 @@ class System
 
         register_access<args>(m_access, std::make_index_sequence<traits::arity>{});
 
+        m_prepare = &prepare_with_args<args>;
+
         m_invoker = [fn = std::forward<Fn>(fn)](World& world) mutable
         { invoke_with_args<args>(fn, world, std::make_index_sequence<traits::arity>{}); };
     }
 
     void operator()(World& world) const { m_invoker(world); }
+
+    // Create every component pool this system's queries touch. EnTT creates
+    // pools lazily on first (mutable) view construction, and that creation is
+    // not thread-safe; the scheduler calls prepare() for all systems on the
+    // dispatching thread before any of them runs on a worker, so view
+    // construction inside workers only ever looks up existing pools.
+    void prepare(World& world) const { m_prepare(world); }
 
     [[nodiscard]] const std::string& name() const noexcept { return m_name; }
     [[nodiscard]] const ResourceAccess& access() const noexcept { return m_access; }
@@ -72,8 +81,20 @@ class System
         fn(detail::query_kind<std::tuple_element_t<Is, Tuple>>::construct(world)...);
     }
 
+    template <typename Tuple> static void prepare_with_args(World& world)
+    {
+        prepare_impl<Tuple>(world, std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+    }
+
+    template <typename Tuple, std::size_t... Is>
+    static void prepare_impl(World& world, std::index_sequence<Is...>)
+    {
+        (detail::query_kind<std::tuple_element_t<Is, Tuple>>::prepare(world), ...);
+    }
+
     std::string m_name;
     ResourceAccess m_access;
+    void (*m_prepare)(World&) = nullptr;
     std::function<void(World&)> m_invoker;
 };
 

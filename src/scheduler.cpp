@@ -39,6 +39,15 @@ void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
 
     DOD_ASSERT(counters.size() >= n, "dispatch_graph: counters must be sized to graph.size()");
 
+    // Pre-create every component pool the graph touches, on this thread.
+    // EnTT creates pools lazily and that creation is not thread-safe, so it
+    // must never first happen inside a worker running systems in parallel.
+    // For already-existing pools this is one map lookup per query parameter.
+    for (NodeId i = 0; i < n; ++i)
+    {
+        graph.system(i).prepare(world);
+    }
+
     // Reset per-node counters from the graph's static dependency counts.
     for (NodeId i = 0; i < n; ++i)
     {

@@ -48,7 +48,7 @@ TEST(SystemGraph, AccessSystemByNodeId)
     EXPECT_EQ(g.system(a).name(), "reader");
 }
 
-TEST(SystemGraph, InvalidNodeIdThrows)
+TEST(SystemGraph, InvalidNodeIdAsserts)
 {
     dod::SystemGraph g;
     EXPECT_DEATH({ (void)g.system(99); }, ".*");
@@ -185,14 +185,14 @@ TEST(SystemGraph, ExplicitEdgeDuplicatingConflictIsDeduped)
     EXPECT_EQ(g.dependencies(b).size(), 1u);
 }
 
-TEST(SystemGraph, OrderBeforeOnSelfThrows)
+TEST(SystemGraph, OrderBeforeOnSelfAsserts)
 {
     dod::SystemGraph g;
     auto a = g.add_system(dod::System{"a", []() {}});
     EXPECT_DEATH({ g.order_before(a, a); }, ".*");
 }
 
-TEST(SystemGraph, OrderBeforeWithInvalidIdThrows)
+TEST(SystemGraph, OrderBeforeWithInvalidIdAsserts)
 {
     dod::SystemGraph g;
     auto a = g.add_system(dod::System{"a", []() {}});
@@ -244,14 +244,14 @@ TEST(SystemGraph, CycleViaExplicitEdgesFailsBuild)
 
 // ── Build state ─────────────────────────────────────────────
 
-TEST(SystemGraph, AddSystemAfterBuildThrows)
+TEST(SystemGraph, AddSystemAfterBuildAsserts)
 {
     dod::SystemGraph g;
     EXPECT_TRUE(g.build());
     EXPECT_DEATH({ g.add_system(dod::System{"x", []() {}}); }, ".*");
 }
 
-TEST(SystemGraph, OrderBeforeAfterBuildThrows)
+TEST(SystemGraph, OrderBeforeAfterBuildAsserts)
 {
     dod::SystemGraph g;
     auto a = g.add_system(dod::System{"a", []() {}});

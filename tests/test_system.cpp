@@ -179,3 +179,20 @@ TEST(System, FreeFunctionPointer)
     sys(world);
     EXPECT_EQ(call_count, 1);
 }
+
+TEST(System, NoexceptFreeFunction)
+{
+    static int call_count = 0;
+    struct Helper
+    {
+        static void increment(dod::Write<Health>) noexcept { ++call_count; }
+    };
+    call_count = 0;
+
+    dod::System sys{"noexcept_fn", Helper::increment};
+    EXPECT_EQ(sys.access().writes.size(), 1u);
+
+    dod::World world;
+    sys(world);
+    EXPECT_EQ(call_count, 1);
+}

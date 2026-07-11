@@ -14,8 +14,9 @@ namespace detail
 
 // Runs every system in `graph` exactly once through `pool`, respecting edges.
 // `counters` must already be sized to graph.size(); it is rewritten on entry.
-// Blocks until all in-flight tasks finish. If any system throws, rethrows the
-// first exception after the wait completes.
+// Blocks until all in-flight tasks finish. The graph must be built(); an
+// unbuilt graph asserts in debug and is a no-op in release. Systems must not
+// throw — exceptions are disabled at the project level.
 void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
                     std::vector<std::atomic<std::size_t>>& counters);
 
@@ -32,8 +33,8 @@ class Scheduler
     Scheduler& operator=(Scheduler&&) = delete;
 
     // Execute every system once, respecting graph ordering. Blocks until all
-    // systems finish. If any system throws, run() rethrows the first exception
-    // after all in-flight tasks have completed.
+    // systems finish. Systems must not throw — exceptions are disabled at the
+    // project level, so a throwing system terminates the process.
     void run(World& world);
 
     [[nodiscard]] const SystemGraph& graph() const noexcept { return m_graph; }

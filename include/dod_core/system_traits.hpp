@@ -22,8 +22,20 @@ template <typename R, typename... Args> struct function_traits<R(Args...)>
     static constexpr std::size_t arity = sizeof...(Args);
 };
 
+// noexcept is part of the function type since C++17, so noexcept functions
+// and function pointers need their own specializations.
+template <typename R, typename... Args>
+struct function_traits<R(Args...) noexcept> : function_traits<R(Args...)>
+{
+};
+
 template <typename R, typename... Args>
 struct function_traits<R (*)(Args...)> : function_traits<R(Args...)>
+{
+};
+
+template <typename R, typename... Args>
+struct function_traits<R (*)(Args...) noexcept> : function_traits<R(Args...)>
 {
 };
 

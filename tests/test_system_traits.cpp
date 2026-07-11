@@ -99,3 +99,32 @@ TEST(SystemTraits, FunctionPointerWithoutAddressOf)
     static_assert(traits::read_count == 1);
     static_assert(traits::write_count == 1);
 }
+
+// ── noexcept callables ──────────────────────────────────────
+// noexcept is part of the function type since C++17; these used to fail to
+// compile because function_traits lacked noexcept specializations for free
+// functions and function pointers.
+
+void noexcept_system(dod::Write<Velocity>) noexcept {}
+
+TEST(SystemTraits, NoexceptFreeFunction)
+{
+    using traits = dod::SystemTraits<decltype(&noexcept_system)>;
+    static_assert(traits::arity == 1);
+    static_assert(traits::write_count == 1);
+}
+
+TEST(SystemTraits, NoexceptFunctionType)
+{
+    using traits = dod::SystemTraits<decltype(noexcept_system)>;
+    static_assert(traits::arity == 1);
+    static_assert(traits::write_count == 1);
+}
+
+TEST(SystemTraits, NoexceptLambda)
+{
+    auto lam = [](dod::Read<Position>) noexcept {};
+    using traits = dod::SystemTraits<decltype(lam)>;
+    static_assert(traits::arity == 1);
+    static_assert(traits::read_count == 1);
+}

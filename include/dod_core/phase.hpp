@@ -44,8 +44,9 @@ class Schedule
     void add_phase(Phase phase);
 
     // Run every phase sequentially. Within a phase, systems run in parallel
-    // through the shared thread pool. If a system in any phase throws, run()
-    // rethrows after that phase's wait; subsequent phases are skipped.
+    // through the shared thread pool. Systems must not throw — exceptions are
+    // disabled at the project level, so a throwing system terminates the
+    // process.
     void run(World& world);
 
     [[nodiscard]] std::size_t phase_count() const noexcept { return m_phases.size(); }

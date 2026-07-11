@@ -71,7 +71,7 @@ TEST(Schedule, AddPhaseIncrementsPhaseCount)
     EXPECT_EQ(s.phase(1).name(), "b");
 }
 
-TEST(Schedule, PhaseAccessOutOfRangeThrows)
+TEST(Schedule, PhaseAccessOutOfRangeAsserts)
 {
     dod::Schedule s;
     EXPECT_DEATH({ (void)s.phase(0); }, ".*");

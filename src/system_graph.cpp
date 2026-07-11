@@ -52,16 +52,16 @@ void SystemGraph::order_before(NodeId before, NodeId after)
     m_explicit_edges.emplace_back(before, after);
 }
 
-void SystemGraph::build()
+bool SystemGraph::build()
 {
     if (m_built)
     {
-        return;
+        return true;
     }
 
     // User-declared edges first, so they take priority over registration-order
     // resolution for conflicting pairs. Two contradicting explicit edges land here
-    // as both directions of an edge and are caught later by detect_cycles().
+    // as both directions of an edge and make the acyclicity check below fail.
     for (const auto& [before, after] : m_explicit_edges)
     {
         add_edge(before, after);
@@ -100,9 +100,13 @@ void SystemGraph::build()
         }
     }
 
-    detect_cycles();
+    if (!is_acyclic())
+    {
+        return false;
+    }
 
     m_built = true;
+    return true;
 }
 
 const System& SystemGraph::system(NodeId id) const
@@ -179,7 +183,7 @@ void SystemGraph::add_edge(NodeId from, NodeId to)
     m_nodes[from].dependents.push_back(to);
 }
 
-void SystemGraph::detect_cycles() const
+bool SystemGraph::is_acyclic() const
 {
     std::vector<std::size_t> incoming(m_nodes.size());
     for (NodeId i = 0; i < m_nodes.size(); ++i)
@@ -209,7 +213,7 @@ void SystemGraph::detect_cycles() const
         }
     }
 
-    DOD_ASSERT(processed == m_nodes.size(), "SystemGraph contains a cycle");
+    return processed == m_nodes.size();
 }
 
 void SystemGraph::check_id(NodeId id) const

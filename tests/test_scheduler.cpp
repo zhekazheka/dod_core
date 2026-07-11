@@ -22,7 +22,7 @@ namespace
 dod::SystemGraph make_built_graph()
 {
     dod::SystemGraph g;
-    g.build();
+    EXPECT_TRUE(g.build());
     return g;
 }
 
@@ -54,7 +54,7 @@ TEST(Scheduler, RunsAllSystemsOnce)
     g.add_system(dod::System{"a", [&]() { counter.fetch_add(1); }});
     g.add_system(dod::System{"b", [&]() { counter.fetch_add(1); }});
     g.add_system(dod::System{"c", [&]() { counter.fetch_add(1); }});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Scheduler s{std::move(g)};
     dod::World world;
@@ -68,7 +68,7 @@ TEST(Scheduler, MultipleRunsExecuteEverySystemEachTime)
     dod::SystemGraph g;
     g.add_system(dod::System{"a", [&]() { counter.fetch_add(1); }});
     g.add_system(dod::System{"b", [&]() { counter.fetch_add(1); }});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Scheduler s{std::move(g)};
     dod::World world;
@@ -96,7 +96,7 @@ TEST(Scheduler, RespectsExplicitOrdering)
     auto c = g.add_system(dod::System{"c", [&]() { record(3); }});
     g.order_before(a, b);
     g.order_before(b, c);
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Scheduler s{std::move(g)};
     dod::World world;
@@ -118,7 +118,7 @@ TEST(Scheduler, RespectsConflictDerivedOrdering)
     dod::SystemGraph g;
     g.add_system(dod::System{"first_writer", [&](dod::Write<Position>) { record(1); }});
     g.add_system(dod::System{"second_writer", [&](dod::Write<Position>) { record(2); }});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Scheduler s{std::move(g)};
     dod::World world;
@@ -142,7 +142,7 @@ TEST(Scheduler, MutatesWorldAcrossSystems)
                                          p.y += v.vy;
                                      });
                              }});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Scheduler s{std::move(g)};
     dod::World world;
@@ -170,7 +170,7 @@ TEST(Scheduler, IndependentSystemsRunInParallel)
     g.add_system(dod::System{"b", [sleep_dur] { std::this_thread::sleep_for(sleep_dur); }});
     g.add_system(dod::System{"c", [sleep_dur] { std::this_thread::sleep_for(sleep_dur); }});
     g.add_system(dod::System{"d", [sleep_dur] { std::this_thread::sleep_for(sleep_dur); }});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Scheduler s{std::move(g), 4};
     dod::World world;
@@ -202,7 +202,7 @@ TEST(Scheduler, PreCreatesComponentPoolsBeforeDispatch)
     dod::SystemGraph g;
     g.add_system(dod::System{"a", [](dod::Write<FreshA> a) { a.each([](FreshA& c) { ++c.v; }); }});
     g.add_system(dod::System{"b", [](dod::Read<FreshB>) {}});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Scheduler s{std::move(g), 4};
     dod::World world; // fresh world: neither pool exists yet

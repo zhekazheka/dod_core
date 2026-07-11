@@ -22,7 +22,7 @@ namespace
 dod::SystemGraph make_built_empty_graph()
 {
     dod::SystemGraph g;
-    g.build();
+    EXPECT_TRUE(g.build());
     return g;
 }
 
@@ -84,11 +84,11 @@ TEST(Schedule, RunsAllSystemsAcrossPhases)
     dod::SystemGraph g1;
     g1.add_system(dod::System{"a", [&]() { counter.fetch_add(1); }});
     g1.add_system(dod::System{"b", [&]() { counter.fetch_add(1); }});
-    g1.build();
+    EXPECT_TRUE(g1.build());
 
     dod::SystemGraph g2;
     g2.add_system(dod::System{"c", [&]() { counter.fetch_add(1); }});
-    g2.build();
+    EXPECT_TRUE(g2.build());
 
     dod::Schedule s;
     s.add_phase(dod::Phase{"phase1", std::move(g1)});
@@ -112,12 +112,12 @@ TEST(Schedule, PhasesExecuteSequentially)
     dod::SystemGraph g1;
     g1.add_system(dod::System{"p1a", [&]() { record(1); }});
     g1.add_system(dod::System{"p1b", [&]() { record(1); }});
-    g1.build();
+    EXPECT_TRUE(g1.build());
 
     dod::SystemGraph g2;
     g2.add_system(dod::System{"p2a", [&]() { record(2); }});
     g2.add_system(dod::System{"p2b", [&]() { record(2); }});
-    g2.build();
+    EXPECT_TRUE(g2.build());
 
     dod::Schedule s;
     s.add_phase(dod::Phase{"phase1", std::move(g1)});
@@ -144,7 +144,7 @@ TEST(Schedule, SystemsWithinPhaseRunInParallel)
     g.add_system(dod::System{"b", [sleep_dur] { std::this_thread::sleep_for(sleep_dur); }});
     g.add_system(dod::System{"c", [sleep_dur] { std::this_thread::sleep_for(sleep_dur); }});
     g.add_system(dod::System{"d", [sleep_dur] { std::this_thread::sleep_for(sleep_dur); }});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Schedule s{4};
     s.add_phase(dod::Phase{"parallel", std::move(g)});
@@ -164,7 +164,7 @@ TEST(Schedule, MultipleRunsExecuteAllPhasesEachTime)
 
     dod::SystemGraph g;
     g.add_system(dod::System{"a", [&]() { counter.fetch_add(1); }});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Schedule s;
     s.add_phase(dod::Phase{"only", std::move(g)});

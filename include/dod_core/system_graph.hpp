@@ -33,8 +33,10 @@ class SystemGraph
     void order_before(NodeId before, NodeId after);
 
     // Analyze conflicts, materialize the adjacency lists, and verify acyclicity.
-    // Throws std::runtime_error on cycle. Idempotent within a graph instance.
-    void build();
+    // Returns true on success (and on repeat calls once built). Returns false
+    // if the edges form a cycle; the graph then remains unbuilt and must be
+    // discarded after fixing the offending order_before() declarations.
+    [[nodiscard]] bool build();
 
     [[nodiscard]] std::size_t size() const noexcept { return m_nodes.size(); }
     [[nodiscard]] bool built() const noexcept { return m_built; }
@@ -55,7 +57,7 @@ class SystemGraph
 
     static bool conflicts(const ResourceAccess& a, const ResourceAccess& b) noexcept;
     void add_edge(NodeId from, NodeId to);
-    void detect_cycles() const;
+    [[nodiscard]] bool is_acyclic() const;
     void check_id(NodeId id) const;
 
     std::vector<Node> m_nodes;

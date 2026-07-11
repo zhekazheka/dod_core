@@ -33,7 +33,7 @@ dod::SystemGraph build_pre_update(std::atomic<int>& frame_counter)
                                  (void)ww;
                                  (void)frame;
                              }});
-    g.build();
+    EXPECT_TRUE(g.build());
     return g;
 }
 
@@ -50,7 +50,7 @@ dod::SystemGraph build_update()
                                          p.y += v.vy;
                                      });
                              }});
-    g.build();
+    EXPECT_TRUE(g.build());
     return g;
 }
 
@@ -60,7 +60,7 @@ dod::SystemGraph build_post_update(std::atomic<int>& observed)
     g.add_system(
         dod::System{"observe", [&observed](dod::Read<Position> pos)
                     { pos.each([&observed](const Position&) { observed.fetch_add(1); }); }});
-    g.build();
+    EXPECT_TRUE(g.build());
     return g;
 }
 
@@ -116,7 +116,7 @@ TEST(Integration, IndependentSystemsRunInParallelAcrossPhases)
     g.add_system(dod::System{"b", [sleep_dur] { std::this_thread::sleep_for(sleep_dur); }});
     g.add_system(dod::System{"c", [sleep_dur] { std::this_thread::sleep_for(sleep_dur); }});
     g.add_system(dod::System{"d", [sleep_dur] { std::this_thread::sleep_for(sleep_dur); }});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Schedule s{4};
     s.add_phase(dod::Phase{"parallel", std::move(g)});
@@ -138,7 +138,7 @@ TEST(Integration, ConflictingSystemsRunInOrderAcrossManyFrames)
                              { pos.each([](Position& p) { p.x += 1.0f; }); }});
     g.add_system(dod::System{"double_x", [](dod::Write<Position> pos)
                              { pos.each([](Position& p) { p.x *= 2.0f; }); }});
-    g.build();
+    EXPECT_TRUE(g.build());
 
     dod::Schedule s;
     s.add_phase(dod::Phase{"update", std::move(g)});

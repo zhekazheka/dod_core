@@ -31,6 +31,15 @@ namespace detail
 void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
                     std::vector<std::atomic<std::size_t>>& counters)
 {
+    // Refuse to run an unbuilt graph. Without built adjacency lists there are
+    // no roots, so dispatching would block on the latch forever. Asserts in
+    // debug; in release a no-op run is the recoverable failure mode.
+    if (!graph.built())
+    {
+        DOD_ASSERT(false, "dispatch_graph: SystemGraph must be built()");
+        return;
+    }
+
     const std::size_t n = graph.size();
     if (n == 0)
     {

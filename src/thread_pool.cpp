@@ -30,6 +30,23 @@ ThreadPool::~ThreadPool()
 
 void ThreadPool::submit_detached(std::function<void()> task) { enqueue(std::move(task)); }
 
+bool ThreadPool::try_run_one()
+{
+    std::function<void()> task;
+    {
+        std::lock_guard lock(m_mutex);
+        if (m_queue.empty())
+        {
+            return false;
+        }
+        task = std::move(m_queue.front());
+        m_queue.pop();
+    }
+    // Exceptions are disabled at the project level. Tasks must not throw.
+    task();
+    return true;
+}
+
 std::size_t ThreadPool::default_worker_count() noexcept
 {
     const auto hw = std::thread::hardware_concurrency();

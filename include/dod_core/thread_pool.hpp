@@ -29,6 +29,11 @@ class ThreadPool
     // project level. A throwing task will call std::terminate.
     void submit_detached(std::function<void()> task);
 
+    // Pop and execute one queued task on the calling thread. Returns false if
+    // the queue was empty. Lets a thread waiting on submitted work help drain
+    // the queue instead of idling (the scheduler does this during run()).
+    bool try_run_one();
+
   private:
     static std::size_t default_worker_count() noexcept;
     void worker_loop(std::stop_token st);

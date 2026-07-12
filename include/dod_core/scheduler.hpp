@@ -32,9 +32,11 @@ class Scheduler
     Scheduler(Scheduler&&) = delete;
     Scheduler& operator=(Scheduler&&) = delete;
 
-    // Execute every system once, respecting graph ordering. Blocks until all
-    // systems finish. Systems must not throw — exceptions are disabled at the
-    // project level, so a throwing system terminates the process.
+    // Execute every system once, respecting graph ordering. Returns when all
+    // systems have finished. The calling thread participates in execution
+    // (systems may run on it), so the default worker count is one below the
+    // hardware thread count. Systems must not throw — exceptions are disabled
+    // at the project level, so a throwing system terminates the process.
     void run(World& world);
 
     [[nodiscard]] const SystemGraph& graph() const noexcept { return m_graph; }

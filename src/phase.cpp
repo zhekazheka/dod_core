@@ -38,8 +38,10 @@ const Phase& Schedule::phase(std::size_t index) const
 
 std::size_t Schedule::default_worker_count() noexcept
 {
+    // The calling thread participates in execution during run(), so spawn one
+    // worker fewer than the core count to keep total active threads at hw.
     const auto hw = std::thread::hardware_concurrency();
-    return hw == 0 ? 1u : static_cast<std::size_t>(hw);
+    return hw <= 1 ? 1u : static_cast<std::size_t>(hw - 1);
 }
 
 } // namespace dod

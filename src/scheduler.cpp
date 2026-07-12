@@ -1,7 +1,6 @@
 #include <dod_core/assert.hpp>
 #include <dod_core/scheduler.hpp>
 
-#include <functional>
 #include <latch>
 #include <thread>
 
@@ -16,8 +15,10 @@ Scheduler::Scheduler(SystemGraph graph, std::size_t worker_count)
 
 std::size_t Scheduler::default_worker_count() noexcept
 {
+    // The calling thread participates in execution during run(), so spawn one
+    // worker fewer than the core count to keep total active threads at hw.
     const auto hw = std::thread::hardware_concurrency();
-    return hw == 0 ? 1u : static_cast<std::size_t>(hw);
+    return hw <= 1 ? 1u : static_cast<std::size_t>(hw - 1);
 }
 
 void Scheduler::run(World& world)
@@ -27,6 +28,66 @@ void Scheduler::run(World& world)
 
 namespace detail
 {
+
+namespace
+{
+
+constexpr NodeId invalid_node = static_cast<NodeId>(-1);
+
+// Per-run dispatch state. Lives on the dispatching thread's stack; workers
+// hold only a pointer to it. dispatch_graph returns after the latch fully
+// resolves, and count_down is each node's final touch of this object, so no
+// worker can observe it after destruction.
+struct Dispatch
+{
+    const SystemGraph& graph;
+    World& world;
+    ThreadPool& pool;
+    std::vector<std::atomic<std::size_t>>& counters;
+    std::latch& done;
+
+    // Run `id`, then keep running newly-ready dependents inline: the first
+    // ready dependent continues on this thread, the rest go to the pool. A
+    // serial chain therefore executes with zero queue round trips after its
+    // root. Systems must not throw — exceptions are disabled project-wide.
+    void run_chain(NodeId id)
+    {
+        while (true)
+        {
+            graph.system(id)(world);
+
+            NodeId next = invalid_node;
+            for (NodeId dep : graph.dependents(id))
+            {
+                if (counters[dep].fetch_sub(1, std::memory_order_acq_rel) == 1)
+                {
+                    if (next == invalid_node)
+                    {
+                        next = dep;
+                    }
+                    else
+                    {
+                        pool.submit_detached([this, dep] { run_chain(dep); });
+                    }
+                }
+            }
+
+            // May be the final count_down of the frame, after which the
+            // dispatching thread can wake and destroy *this. Only the local
+            // `next` may be read past this point unless next != invalid_node
+            // (an unfinished node keeps the latch, and so *this, alive).
+            done.count_down();
+
+            if (next == invalid_node)
+            {
+                return;
+            }
+            id = next;
+        }
+    }
+};
+
+} // namespace
 
 void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
                     std::vector<std::atomic<std::size_t>>& counters)
@@ -64,30 +125,24 @@ void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
     }
 
     std::latch done{static_cast<std::ptrdiff_t>(n)};
+    Dispatch dispatch{graph, world, pool, counters, done};
 
-    // Recursive dispatch lambda. Captured by reference; lifetime extends until
-    // this function returns, which only happens after the latch fully resolves.
-    // Systems must not throw — exceptions are disabled at the project level.
-    std::function<void(NodeId)> dispatch;
-    dispatch = [&](NodeId id)
+    // Hand all roots but the first to the pool; this thread runs the first
+    // root (and its inline continuation chain) itself instead of parking.
+    const auto& roots = graph.roots();
+    DOD_ASSERT(!roots.empty(), "dispatch_graph: built non-empty graph has no roots");
+    for (std::size_t i = 1; i < roots.size(); ++i)
     {
-        graph.system(id)(world);
-
-        for (NodeId dep : graph.dependents(id))
-        {
-            if (counters[dep].fetch_sub(1, std::memory_order_acq_rel) == 1)
-            {
-                pool.submit_detached([&dispatch, dep]() { dispatch(dep); });
-            }
-        }
-        done.count_down();
-    };
-
-    for (NodeId root : graph.roots())
-    {
-        pool.submit_detached([&dispatch, root]() { dispatch(root); });
+        pool.submit_detached([&dispatch, id = roots[i]] { dispatch.run_chain(id); });
     }
+    dispatch.run_chain(roots.front());
 
+    // Keep helping with queued work while any is visible, then block for the
+    // tail running on workers. (try_wait may spuriously return false; the
+    // final done.wait() is what guarantees completion.)
+    while (!done.try_wait() && pool.try_run_one())
+    {
+    }
     done.wait();
 }
 

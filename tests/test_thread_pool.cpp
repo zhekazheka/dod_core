@@ -60,6 +60,37 @@ TEST(ThreadPool, ManyDetachedTasksAllRun)
     EXPECT_TRUE(wait_until([&] { return counter.load() == N; }));
 }
 
+TEST(ThreadPool, TryRunOneExecutesTaskOnCallingThread)
+{
+    dod::ThreadPool pool{1};
+    // Keep the lone worker busy so the queued probe task stays in the queue.
+    // Wait until the worker has actually dequeued the blocker; otherwise
+    // try_run_one below would pop the blocker instead of the probe (FIFO).
+    std::atomic<bool> started{false};
+    std::atomic<bool> release{false};
+    pool.submit_detached(
+        [&]
+        {
+            started.store(true);
+            wait_until([&] { return release.load(); });
+        });
+    ASSERT_TRUE(wait_until([&] { return started.load(); }));
+
+    const auto caller_id = std::this_thread::get_id();
+    std::atomic<bool> ran_on_caller{false};
+    pool.submit_detached([&] { ran_on_caller.store(std::this_thread::get_id() == caller_id); });
+
+    EXPECT_TRUE(pool.try_run_one());
+    EXPECT_TRUE(ran_on_caller.load());
+    release.store(true);
+}
+
+TEST(ThreadPool, TryRunOneReturnsFalseWhenQueueEmpty)
+{
+    dod::ThreadPool pool{1};
+    EXPECT_FALSE(pool.try_run_one());
+}
+
 TEST(ThreadPool, DestructorJoinsWorkers)
 {
     // Just construct and destroy. jthread auto-joins via stop_token.

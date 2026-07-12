@@ -127,6 +127,38 @@ TEST(Scheduler, RespectsConflictDerivedOrdering)
     EXPECT_EQ(order, (std::vector<int>{1, 2}));
 }
 
+TEST(Scheduler, LongSerialChainRunsInOrder)
+{
+    // 32 systems all writing Position: a pure conflict-derived chain. This
+    // exercises the dispatcher's inline-continuation path (each hop continues
+    // on the same thread rather than round-tripping through the queue).
+    constexpr int chain_length = 32;
+    std::vector<int> order;
+    std::mutex order_mutex;
+
+    dod::SystemGraph g;
+    for (int i = 0; i < chain_length; ++i)
+    {
+        g.add_system(dod::System{"link", [&order, &order_mutex, i](dod::View<Position>)
+                                 {
+                                     std::lock_guard lk(order_mutex);
+                                     order.push_back(i);
+                                 }});
+    }
+    EXPECT_TRUE(g.build());
+
+    dod::Scheduler s{std::move(g), 4};
+    dod::World world;
+    s.run(world);
+    s.run(world);
+
+    ASSERT_EQ(order.size(), 2u * chain_length);
+    for (int i = 0; i < 2 * chain_length; ++i)
+    {
+        EXPECT_EQ(order[static_cast<std::size_t>(i)], i % chain_length);
+    }
+}
+
 // ── World mutation ──────────────────────────────────────────
 
 TEST(Scheduler, MutatesWorldAcrossSystems)

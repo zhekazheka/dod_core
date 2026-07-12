@@ -1,14 +1,20 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 project(dod_core VERSION 0.1.0 LANGUAGES CXX)
 
 # ── Dependencies ──────────────────────────────────────────────
 include(FetchContent)
 
+# FIND_PACKAGE_ARGS: prefer an EnTT already provided by the parent project or
+# the system (composability when several libraries in one build need EnTT);
+# fall back to fetching the pinned tag. SYSTEM: treat EnTT headers as system
+# includes so our warning flags don't fire inside them.
 FetchContent_Declare(
     EnTT
     GIT_REPOSITORY https://github.com/skypjack/entt.git
     GIT_TAG        v3.14.0
     GIT_SHALLOW    TRUE
+    SYSTEM
+    FIND_PACKAGE_ARGS 3.14
 )
 FetchContent_MakeAvailable(EnTT)
 
@@ -36,13 +42,16 @@ target_compile_options(dod_core PUBLIC -fno-rtti -fno-exceptions)
 target_compile_options(dod_core PRIVATE
     -Wall -Wextra -Wpedantic -Werror
     -Wno-unused-parameter
-    -Wno-deprecated-literal-operator
 )
 
 # ── Tests ─────────────────────────────────────────────────────
-include(CTest)
-if(BUILD_TESTING)
-    add_subdirectory(tests)
+# Only when dod_core is the top-level project: consumers pulling us in via
+# add_subdirectory() must not fetch googletest or build our test binaries.
+if(PROJECT_IS_TOP_LEVEL)
+    include(CTest)
+    if(BUILD_TESTING)
+        add_subdirectory(tests)
+    endif()
 endif()
 
 # ── Install ───────────────────────────────────────────────────

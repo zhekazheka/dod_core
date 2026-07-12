@@ -116,8 +116,8 @@ TEST(Scheduler, RespectsConflictDerivedOrdering)
     };
 
     dod::SystemGraph g;
-    g.add_system(dod::System{"first_writer", [&](dod::Write<Position>) { record(1); }});
-    g.add_system(dod::System{"second_writer", [&](dod::Write<Position>) { record(2); }});
+    g.add_system(dod::System{"first_writer", [&](dod::View<Position>) { record(1); }});
+    g.add_system(dod::System{"second_writer", [&](dod::View<Position>) { record(2); }});
     EXPECT_TRUE(g.build());
 
     dod::Scheduler s{std::move(g)};
@@ -132,7 +132,7 @@ TEST(Scheduler, RespectsConflictDerivedOrdering)
 TEST(Scheduler, MutatesWorldAcrossSystems)
 {
     dod::SystemGraph g;
-    g.add_system(dod::System{"integrate", [](dod::Read<Velocity> vel, dod::Write<Position> pos)
+    g.add_system(dod::System{"integrate", [](dod::View<const Velocity> vel, dod::View<Position> pos)
                              {
                                  pos.each(
                                      [&](dod::Entity e, Position& p)
@@ -200,8 +200,8 @@ TEST(Scheduler, PreCreatesComponentPoolsBeforeDispatch)
     };
 
     dod::SystemGraph g;
-    g.add_system(dod::System{"a", [](dod::Write<FreshA> a) { a.each([](FreshA& c) { ++c.v; }); }});
-    g.add_system(dod::System{"b", [](dod::Read<FreshB>) {}});
+    g.add_system(dod::System{"a", [](dod::View<FreshA> a) { a.each([](FreshA& c) { ++c.v; }); }});
+    g.add_system(dod::System{"b", [](dod::View<const FreshB>) {}});
     EXPECT_TRUE(g.build());
 
     dod::Scheduler s{std::move(g), 4};

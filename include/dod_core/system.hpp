@@ -1,23 +1,14 @@
 #pragma once
 
+#include <dod_core/assert.hpp>
 #include <dod_core/system_traits.hpp>
 #include <dod_core/world.hpp>
-#include <entt/core/type_info.hpp>
 #include <functional>
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace dod
 {
-
-struct ResourceAccess
-{
-    std::vector<entt::id_type> reads;
-    std::vector<entt::id_type> writes;
-    bool world_read = false;
-    bool world_write = false;
-};
 
 class System
 {
@@ -28,6 +19,9 @@ class System
         using args = typename traits::args_tuple;
 
         register_access<args>(m_access, std::make_index_sequence<traits::arity>{});
+        DOD_ASSERT(!has_aliased_write(m_access),
+                   "System: a component written by one parameter is accessed again by another "
+                   "parameter of the same system (unsynchronized aliasing)");
 
         m_prepare = &prepare_with_args<args>;
 
@@ -51,28 +45,32 @@ class System
     template <typename Tuple, std::size_t... Is>
     static void register_access(ResourceAccess& access, std::index_sequence<Is...>)
     {
-        (register_one<std::tuple_element_t<Is, Tuple>>(access), ...);
+        (detail::query_kind<std::tuple_element_t<Is, Tuple>>::register_access(access), ...);
     }
 
-    template <typename Param> static void register_one(ResourceAccess& access)
+    // Within one system nothing orders parameter accesses relative to each
+    // other, so the same component must not be written by one parameter and
+    // touched by another. Duplicate reads are harmless and stay legal.
+    static bool has_aliased_write(const ResourceAccess& access)
     {
-        using kind = detail::query_kind<Param>;
-        if constexpr (kind::is_read)
+        for (std::size_t i = 0; i < access.writes.size(); ++i)
         {
-            access.reads.emplace_back(entt::type_hash<typename kind::component>::value());
+            for (std::size_t j = i + 1; j < access.writes.size(); ++j)
+            {
+                if (access.writes[i] == access.writes[j])
+                {
+                    return true;
+                }
+            }
+            for (auto read : access.reads)
+            {
+                if (access.writes[i] == read)
+                {
+                    return true;
+                }
+            }
         }
-        else if constexpr (kind::is_write)
-        {
-            access.writes.emplace_back(entt::type_hash<typename kind::component>::value());
-        }
-        else if constexpr (kind::is_world_read)
-        {
-            access.world_read = true;
-        }
-        else if constexpr (kind::is_world_write)
-        {
-            access.world_write = true;
-        }
+        return false;
     }
 
     template <typename Tuple, typename Fn, std::size_t... Is>

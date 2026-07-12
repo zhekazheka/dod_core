@@ -21,7 +21,7 @@ struct Health
 
 TEST(System, ExtractsReadAccess)
 {
-    dod::System sys{"reader", [](dod::Read<Position>) {}};
+    dod::System sys{"reader", [](dod::View<const Position>) {}};
     EXPECT_EQ(sys.access().reads.size(), 1u);
     EXPECT_EQ(sys.access().writes.size(), 0u);
     EXPECT_EQ(sys.access().reads[0], entt::type_hash<Position>::value());
@@ -31,7 +31,7 @@ TEST(System, ExtractsReadAccess)
 
 TEST(System, ExtractsWriteAccess)
 {
-    dod::System sys{"writer", [](dod::Write<Velocity>) {}};
+    dod::System sys{"writer", [](dod::View<Velocity>) {}};
     EXPECT_EQ(sys.access().reads.size(), 0u);
     EXPECT_EQ(sys.access().writes.size(), 1u);
     EXPECT_EQ(sys.access().writes[0], entt::type_hash<Velocity>::value());
@@ -39,9 +39,34 @@ TEST(System, ExtractsWriteAccess)
 
 TEST(System, ExtractsMixedAccess)
 {
-    dod::System sys{"mixed", [](dod::Read<Position>, dod::Write<Velocity>, dod::Read<Health>) {}};
+    dod::System sys{"mixed",
+                    [](dod::View<const Position>, dod::View<Velocity>, dod::View<const Health>) {}};
     EXPECT_EQ(sys.access().reads.size(), 2u);
     EXPECT_EQ(sys.access().writes.size(), 1u);
+}
+
+TEST(System, ExtractsMultiComponentViewAccess)
+{
+    dod::System sys{"integrate", [](dod::View<Position, const Velocity>) {}};
+    ASSERT_EQ(sys.access().reads.size(), 1u);
+    ASSERT_EQ(sys.access().writes.size(), 1u);
+    EXPECT_EQ(sys.access().reads[0], entt::type_hash<Velocity>::value());
+    EXPECT_EQ(sys.access().writes[0], entt::type_hash<Position>::value());
+}
+
+TEST(System, AliasedWriteAcrossParametersAsserts)
+{
+    // Position is written by the first parameter and read by the second;
+    // nothing orders the two accesses within one system.
+    auto make_aliased = []
+    { return dod::System{"aliased", [](dod::View<Position>, dod::View<const Position>) {}}; };
+    EXPECT_DEATH({ auto sys = make_aliased(); }, ".*");
+}
+
+TEST(System, DuplicateReadsAreAllowed)
+{
+    dod::System sys{"double_read", [](dod::View<const Position>, dod::View<const Position>) {}};
+    EXPECT_EQ(sys.access().reads.size(), 2u);
 }
 
 TEST(System, ExtractsWorldRead)
@@ -95,7 +120,7 @@ TEST(System, InvokesReadSystem)
     world.emplace<Position>(e, 3.0f, 4.0f);
 
     float captured = 0.0f;
-    dod::System sys{"sample_x", [&captured](dod::Read<Position> r)
+    dod::System sys{"sample_x", [&captured](dod::View<const Position> r)
                     { r.each([&](const Position& p) { captured = p.x; }); }};
     sys(world);
     EXPECT_FLOAT_EQ(captured, 3.0f);
@@ -107,7 +132,7 @@ TEST(System, InvokesWriteSystem)
     auto e = world.create();
     world.emplace<Position>(e, 0.0f, 0.0f);
 
-    dod::System sys{"shift", [](dod::Write<Position> w)
+    dod::System sys{"shift", [](dod::View<Position> w)
                     {
                         w.each(
                             [](Position& p)
@@ -123,19 +148,18 @@ TEST(System, InvokesWriteSystem)
     EXPECT_FLOAT_EQ(world.get<Position>(e).y, 4.0f);
 }
 
-TEST(System, InvokesMixedReadWrite)
+TEST(System, InvokesMultiComponentView)
 {
     dod::World world;
     auto e = world.create();
     world.emplace<Position>(e, 0.0f, 0.0f);
     world.emplace<Velocity>(e, 5.0f, -3.0f);
 
-    dod::System sys{"integrate", [](dod::Read<Velocity> vel, dod::Write<Position> pos)
+    dod::System sys{"integrate", [](dod::View<Position, const Velocity> q)
                     {
-                        pos.each(
-                            [&](dod::Entity ent, Position& p)
+                        q.each(
+                            [](Position& p, const Velocity& v)
                             {
-                                const auto& v = vel.get(ent);
                                 p.x += v.vx;
                                 p.y += v.vy;
                             });
@@ -168,7 +192,7 @@ TEST(System, FreeFunctionPointer)
     static int call_count = 0;
     struct Helper
     {
-        static void increment(dod::Read<Position>) { ++call_count; }
+        static void increment(dod::View<const Position>) { ++call_count; }
     };
     call_count = 0;
 
@@ -185,7 +209,7 @@ TEST(System, NoexceptFreeFunction)
     static int call_count = 0;
     struct Helper
     {
-        static void increment(dod::Write<Health>) noexcept { ++call_count; }
+        static void increment(dod::View<Health>) noexcept { ++call_count; }
     };
     call_count = 0;
 

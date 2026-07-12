@@ -6,7 +6,7 @@ A foundational, project-agnostic ECS (Entity-Component-System) library. Uses EnT
 
 - **Entity** — Thin wrapper over `entt::entity`
 - **World** — Thin wrapper over `entt::registry`
-- **Query types** — `Read<T>`, `Write<T>`, `WorldRead`, `WorldWrite`
+- **Query types** — `View<Ts...>` (joint view; per-component access inferred from const: `View<Position, const Velocity>` writes Position, reads Velocity), `WorldRead`, `WorldWrite`
 - **Systems** — Stateless functions whose parameters declare resource access
 - **SystemGraph** — Builds a DAG from resource conflicts for automatic parallelism
 - **Scheduler** — Parallel topological execution via `std::jthread` thread pool

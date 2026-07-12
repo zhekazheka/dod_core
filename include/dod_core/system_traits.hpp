@@ -2,11 +2,24 @@
 
 #include <cstddef>
 #include <dod_core/query.hpp>
+#include <entt/core/type_info.hpp>
 #include <tuple>
 #include <type_traits>
+#include <vector>
 
 namespace dod
 {
+
+// Runtime mirror of a system's compile-time access declaration. Component
+// types are erased to their EnTT type hashes (const stripped first, so
+// View<T> and View<const T> refer to the same component).
+struct ResourceAccess
+{
+    std::vector<entt::id_type> reads;
+    std::vector<entt::id_type> writes;
+    bool world_read = false;
+    bool world_write = false;
+};
 
 namespace detail
 {
@@ -59,56 +72,64 @@ struct function_traits<R (C::*)(Args...) const noexcept> : function_traits<R(Arg
 {
 };
 
+// Each specialization describes one system-parameter kind: how many
+// components it reads/writes, how to record them in a ResourceAccess, how to
+// pre-create their pools, and how to construct the parameter at dispatch.
 template <typename T> struct query_kind
 {
     static_assert(sizeof(T) == 0,
-                  "System parameter must be Read<T>, Write<T>, WorldRead, or WorldWrite");
+                  "System parameter must be View<Ts...>, WorldRead, or WorldWrite");
 };
 
-template <typename T> struct query_kind<Read<T>>
+template <typename... Ts> struct query_kind<View<Ts...>>
 {
-    using component = T;
-    static constexpr bool is_read = true;
-    static constexpr bool is_write = false;
+    static constexpr std::size_t read_count = (std::size_t{std::is_const_v<Ts>} + ... + 0);
+    static constexpr std::size_t write_count = sizeof...(Ts) - read_count;
     static constexpr bool is_world_read = false;
     static constexpr bool is_world_write = false;
 
-    static Read<T> construct(World& world) { return Read<T>{world}; }
-    static void prepare(World& world) { world.registry().storage<T>(); }
-};
+    static View<Ts...> construct(World& world) { return View<Ts...>{world}; }
 
-template <typename T> struct query_kind<Write<T>>
-{
-    using component = T;
-    static constexpr bool is_read = false;
-    static constexpr bool is_write = true;
-    static constexpr bool is_world_read = false;
-    static constexpr bool is_world_write = false;
+    static void prepare(World& world)
+    {
+        (world.registry().storage<std::remove_const_t<Ts>>(), ...);
+    }
 
-    static Write<T> construct(World& world) { return Write<T>{world}; }
-    static void prepare(World& world) { world.registry().storage<T>(); }
+    static void register_access(ResourceAccess& access)
+    {
+        (register_component<Ts>(access), ...);
+    }
+
+  private:
+    template <typename T> static void register_component(ResourceAccess& access)
+    {
+        auto& target = std::is_const_v<T> ? access.reads : access.writes;
+        target.push_back(entt::type_hash<std::remove_const_t<T>>::value());
+    }
 };
 
 template <> struct query_kind<WorldRead>
 {
-    static constexpr bool is_read = false;
-    static constexpr bool is_write = false;
+    static constexpr std::size_t read_count = 0;
+    static constexpr std::size_t write_count = 0;
     static constexpr bool is_world_read = true;
     static constexpr bool is_world_write = false;
 
     static WorldRead construct(World& world) { return WorldRead{world}; }
     static void prepare(World&) {}
+    static void register_access(ResourceAccess& access) { access.world_read = true; }
 };
 
 template <> struct query_kind<WorldWrite>
 {
-    static constexpr bool is_read = false;
-    static constexpr bool is_write = false;
+    static constexpr std::size_t read_count = 0;
+    static constexpr std::size_t write_count = 0;
     static constexpr bool is_world_read = false;
     static constexpr bool is_world_write = true;
 
     static WorldWrite construct(World& world) { return WorldWrite{world}; }
     static void prepare(World&) {}
+    static void register_access(ResourceAccess& access) { access.world_write = true; }
 };
 
 } // namespace detail
@@ -126,15 +147,13 @@ template <typename Fn> struct SystemTraits
     template <std::size_t... Is>
     static constexpr std::size_t count_reads(std::index_sequence<Is...>)
     {
-        return ((detail::query_kind<std::tuple_element_t<Is, args_tuple>>::is_read ? 1 : 0) + ... +
-                0);
+        return (detail::query_kind<std::tuple_element_t<Is, args_tuple>>::read_count + ... + 0);
     }
 
     template <std::size_t... Is>
     static constexpr std::size_t count_writes(std::index_sequence<Is...>)
     {
-        return ((detail::query_kind<std::tuple_element_t<Is, args_tuple>>::is_write ? 1 : 0) + ... +
-                0);
+        return (detail::query_kind<std::tuple_element_t<Is, args_tuple>>::write_count + ... + 0);
     }
 
     template <std::size_t... Is> static constexpr bool any_world_read(std::index_sequence<Is...>)

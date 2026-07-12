@@ -13,9 +13,9 @@ struct Velocity
 
 // ── Plain free functions ────────────────────────────────────
 
-void read_only_system(dod::Read<Position>) {}
-void write_only_system(dod::Write<Velocity>) {}
-void mixed_system(dod::Read<Position>, dod::Write<Velocity>) {}
+void read_only_system(dod::View<const Position>) {}
+void write_only_system(dod::View<Velocity>) {}
+void mixed_system(dod::View<const Position>, dod::View<Velocity>) {}
 void world_read_system(dod::WorldRead) {}
 void world_write_system(dod::WorldWrite) {}
 void no_arg_system() {}
@@ -77,7 +77,7 @@ TEST(SystemTraits, NoArgFunction)
 
 TEST(SystemTraits, Lambda)
 {
-    auto lam = [](dod::Read<Position>, dod::Write<Velocity>) {};
+    auto lam = [](dod::View<const Position>, dod::View<Velocity>) {};
     using traits = dod::SystemTraits<decltype(lam)>;
     static_assert(traits::arity == 2);
     static_assert(traits::read_count == 1);
@@ -86,7 +86,7 @@ TEST(SystemTraits, Lambda)
 
 TEST(SystemTraits, MutableLambda)
 {
-    auto lam = [counter = 0](dod::Write<Position>) mutable { ++counter; };
+    auto lam = [counter = 0](dod::View<Position>) mutable { ++counter; };
     using traits = dod::SystemTraits<decltype(lam)>;
     static_assert(traits::arity == 1);
     static_assert(traits::write_count == 1);
@@ -94,7 +94,7 @@ TEST(SystemTraits, MutableLambda)
 
 TEST(SystemTraits, FunctionPointerWithoutAddressOf)
 {
-    using traits = dod::SystemTraits<void (*)(dod::Read<Position>, dod::Write<Velocity>)>;
+    using traits = dod::SystemTraits<void (*)(dod::View<const Position>, dod::View<Velocity>)>;
     static_assert(traits::arity == 2);
     static_assert(traits::read_count == 1);
     static_assert(traits::write_count == 1);
@@ -105,7 +105,7 @@ TEST(SystemTraits, FunctionPointerWithoutAddressOf)
 // compile because function_traits lacked noexcept specializations for free
 // functions and function pointers.
 
-void noexcept_system(dod::Write<Velocity>) noexcept {}
+void noexcept_system(dod::View<Velocity>) noexcept {}
 
 TEST(SystemTraits, NoexceptFreeFunction)
 {
@@ -123,7 +123,7 @@ TEST(SystemTraits, NoexceptFunctionType)
 
 TEST(SystemTraits, NoexceptLambda)
 {
-    auto lam = [](dod::Read<Position>) noexcept {};
+    auto lam = [](dod::View<const Position>) noexcept {};
     using traits = dod::SystemTraits<decltype(lam)>;
     static_assert(traits::arity == 1);
     static_assert(traits::read_count == 1);

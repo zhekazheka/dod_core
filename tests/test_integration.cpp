@@ -40,7 +40,7 @@ dod::SystemGraph build_pre_update(std::atomic<int>& frame_counter)
 dod::SystemGraph build_update()
 {
     dod::SystemGraph g;
-    g.add_system(dod::System{"integrate", [](dod::Read<Velocity> vel, dod::Write<Position> pos)
+    g.add_system(dod::System{"integrate", [](dod::View<const Velocity> vel, dod::View<Position> pos)
                              {
                                  pos.each(
                                      [&](dod::Entity e, Position& p)
@@ -58,7 +58,7 @@ dod::SystemGraph build_post_update(std::atomic<int>& observed)
 {
     dod::SystemGraph g;
     g.add_system(
-        dod::System{"observe", [&observed](dod::Read<Position> pos)
+        dod::System{"observe", [&observed](dod::View<const Position> pos)
                     { pos.each([&observed](const Position&) { observed.fetch_add(1); }); }});
     EXPECT_TRUE(g.build());
     return g;
@@ -134,9 +134,9 @@ TEST(Integration, ConflictingSystemsRunInOrderAcrossManyFrames)
     // Two systems writing the same component must run in sequence.
     // Verify final state is consistent across many frames.
     dod::SystemGraph g;
-    g.add_system(dod::System{"increment_x", [](dod::Write<Position> pos)
+    g.add_system(dod::System{"increment_x", [](dod::View<Position> pos)
                              { pos.each([](Position& p) { p.x += 1.0f; }); }});
-    g.add_system(dod::System{"double_x", [](dod::Write<Position> pos)
+    g.add_system(dod::System{"double_x", [](dod::View<Position> pos)
                              { pos.each([](Position& p) { p.x *= 2.0f; }); }});
     EXPECT_TRUE(g.build());
 

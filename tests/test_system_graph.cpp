@@ -44,7 +44,7 @@ TEST(SystemGraph, AddSystemReturnsSequentialIds)
 TEST(SystemGraph, AccessSystemByNodeId)
 {
     dod::SystemGraph g;
-    auto a = g.add_system(dod::System{"reader", [](dod::Read<Position>) {}});
+    auto a = g.add_system(dod::System{"reader", [](dod::View<const Position>) {}});
     EXPECT_EQ(g.system(a).name(), "reader");
 }
 
@@ -59,8 +59,8 @@ TEST(SystemGraph, InvalidNodeIdAsserts)
 TEST(SystemGraph, NoConflictsLeavesAllRoots)
 {
     dod::SystemGraph g;
-    auto a = g.add_system(dod::System{"read_pos", [](dod::Read<Position>) {}});
-    auto b = g.add_system(dod::System{"read_vel", [](dod::Read<Velocity>) {}});
+    auto a = g.add_system(dod::System{"read_pos", [](dod::View<const Position>) {}});
+    auto b = g.add_system(dod::System{"read_vel", [](dod::View<const Velocity>) {}});
     EXPECT_TRUE(g.build());
 
     EXPECT_EQ(g.roots().size(), 2u);
@@ -73,8 +73,8 @@ TEST(SystemGraph, NoConflictsLeavesAllRoots)
 TEST(SystemGraph, ParallelReadsOnSameComponentDoNotConflict)
 {
     dod::SystemGraph g;
-    g.add_system(dod::System{"r1", [](dod::Read<Position>) {}});
-    g.add_system(dod::System{"r2", [](dod::Read<Position>) {}});
+    g.add_system(dod::System{"r1", [](dod::View<const Position>) {}});
+    g.add_system(dod::System{"r2", [](dod::View<const Position>) {}});
     EXPECT_TRUE(g.build());
     EXPECT_EQ(g.roots().size(), 2u);
 }
@@ -82,8 +82,8 @@ TEST(SystemGraph, ParallelReadsOnSameComponentDoNotConflict)
 TEST(SystemGraph, WriteAfterReadConflict)
 {
     dod::SystemGraph g;
-    auto reader = g.add_system(dod::System{"reader", [](dod::Read<Position>) {}});
-    auto writer = g.add_system(dod::System{"writer", [](dod::Write<Position>) {}});
+    auto reader = g.add_system(dod::System{"reader", [](dod::View<const Position>) {}});
+    auto writer = g.add_system(dod::System{"writer", [](dod::View<Position>) {}});
     EXPECT_TRUE(g.build());
 
     EXPECT_EQ(g.dependency_count(reader), 0u);
@@ -97,8 +97,8 @@ TEST(SystemGraph, WriteAfterReadConflict)
 TEST(SystemGraph, TwoWritersConflict)
 {
     dod::SystemGraph g;
-    auto a = g.add_system(dod::System{"w1", [](dod::Write<Position>) {}});
-    auto b = g.add_system(dod::System{"w2", [](dod::Write<Position>) {}});
+    auto a = g.add_system(dod::System{"w1", [](dod::View<Position>) {}});
+    auto b = g.add_system(dod::System{"w2", [](dod::View<Position>) {}});
     EXPECT_TRUE(g.build());
     EXPECT_TRUE(contains(g.dependencies(b), a));
 }
@@ -106,18 +106,39 @@ TEST(SystemGraph, TwoWritersConflict)
 TEST(SystemGraph, DifferentComponentsDoNotConflict)
 {
     dod::SystemGraph g;
-    g.add_system(dod::System{"w_pos", [](dod::Write<Position>) {}});
-    g.add_system(dod::System{"w_vel", [](dod::Write<Velocity>) {}});
+    g.add_system(dod::System{"w_pos", [](dod::View<Position>) {}});
+    g.add_system(dod::System{"w_vel", [](dod::View<Velocity>) {}});
     EXPECT_TRUE(g.build());
+    EXPECT_EQ(g.roots().size(), 2u);
+}
+
+TEST(SystemGraph, MultiComponentViewsConflictOnSharedWrite)
+{
+    dod::SystemGraph g;
+    auto integrate =
+        g.add_system(dod::System{"integrate", [](dod::View<Position, const Velocity>) {}});
+    auto render = g.add_system(dod::System{"render", [](dod::View<const Position>) {}});
+    EXPECT_TRUE(g.build());
+    // integrate writes Position, render reads it.
+    EXPECT_TRUE(contains(g.dependencies(render), integrate));
+}
+
+TEST(SystemGraph, MultiComponentViewsWithSharedReadDoNotConflict)
+{
+    dod::SystemGraph g;
+    g.add_system(dod::System{"a", [](dod::View<Position, const Health>) {}});
+    g.add_system(dod::System{"b", [](dod::View<Velocity, const Health>) {}});
+    EXPECT_TRUE(g.build());
+    // Both only read Health; their writes are disjoint.
     EXPECT_EQ(g.roots().size(), 2u);
 }
 
 TEST(SystemGraph, WorldWriteIsExclusive)
 {
     dod::SystemGraph g;
-    auto reader = g.add_system(dod::System{"reader", [](dod::Read<Position>) {}});
+    auto reader = g.add_system(dod::System{"reader", [](dod::View<const Position>) {}});
     auto exclusive = g.add_system(dod::System{"exclusive", [](dod::WorldWrite) {}});
-    auto writer = g.add_system(dod::System{"writer", [](dod::Write<Velocity>) {}});
+    auto writer = g.add_system(dod::System{"writer", [](dod::View<Velocity>) {}});
     EXPECT_TRUE(g.build());
 
     // exclusive depends on reader; writer depends on exclusive
@@ -129,7 +150,7 @@ TEST(SystemGraph, WorldReadConflictsWithWrites)
 {
     dod::SystemGraph g;
     auto observer = g.add_system(dod::System{"observer", [](dod::WorldRead) {}});
-    auto writer = g.add_system(dod::System{"writer", [](dod::Write<Position>) {}});
+    auto writer = g.add_system(dod::System{"writer", [](dod::View<Position>) {}});
     EXPECT_TRUE(g.build());
     EXPECT_TRUE(contains(g.dependencies(writer), observer));
 }
@@ -138,7 +159,7 @@ TEST(SystemGraph, WorldReadDoesNotConflictWithReads)
 {
     dod::SystemGraph g;
     g.add_system(dod::System{"observer", [](dod::WorldRead) {}});
-    g.add_system(dod::System{"reader", [](dod::Read<Position>) {}});
+    g.add_system(dod::System{"reader", [](dod::View<const Position>) {}});
     EXPECT_TRUE(g.build());
     EXPECT_EQ(g.roots().size(), 2u);
 }
@@ -146,9 +167,9 @@ TEST(SystemGraph, WorldReadDoesNotConflictWithReads)
 TEST(SystemGraph, RegistrationOrderDeterminesEdgeDirection)
 {
     dod::SystemGraph g;
-    auto first = g.add_system(dod::System{"first", [](dod::Write<Position>) {}});
-    auto second = g.add_system(dod::System{"second", [](dod::Write<Position>) {}});
-    auto third = g.add_system(dod::System{"third", [](dod::Write<Position>) {}});
+    auto first = g.add_system(dod::System{"first", [](dod::View<Position>) {}});
+    auto second = g.add_system(dod::System{"second", [](dod::View<Position>) {}});
+    auto third = g.add_system(dod::System{"third", [](dod::View<Position>) {}});
     EXPECT_TRUE(g.build());
 
     // Chain: first -> second -> third
@@ -177,8 +198,8 @@ TEST(SystemGraph, ExplicitOrderBeforeAddsEdge)
 TEST(SystemGraph, ExplicitEdgeDuplicatingConflictIsDeduped)
 {
     dod::SystemGraph g;
-    auto a = g.add_system(dod::System{"a", [](dod::Write<Position>) {}});
-    auto b = g.add_system(dod::System{"b", [](dod::Write<Position>) {}});
+    auto a = g.add_system(dod::System{"a", [](dod::View<Position>) {}});
+    auto b = g.add_system(dod::System{"b", [](dod::View<Position>) {}});
     g.order_before(a, b); // also implied by conflict
     EXPECT_TRUE(g.build());
 
@@ -202,8 +223,8 @@ TEST(SystemGraph, OrderBeforeWithInvalidIdAsserts)
 TEST(SystemGraph, ExplicitEdgeOverridesRegistrationOrder)
 {
     dod::SystemGraph g;
-    auto a = g.add_system(dod::System{"a", [](dod::Write<Position>) {}});
-    auto b = g.add_system(dod::System{"b", [](dod::Write<Position>) {}});
+    auto a = g.add_system(dod::System{"a", [](dod::View<Position>) {}});
+    auto b = g.add_system(dod::System{"b", [](dod::View<Position>) {}});
     g.order_before(b, a); // flip the conflict-derived order
     EXPECT_TRUE(g.build());
 
@@ -263,8 +284,8 @@ TEST(SystemGraph, OrderBeforeAfterBuildAsserts)
 TEST(SystemGraph, BuildIsIdempotent)
 {
     dod::SystemGraph g;
-    g.add_system(dod::System{"a", [](dod::Write<Position>) {}});
-    g.add_system(dod::System{"b", [](dod::Write<Position>) {}});
+    g.add_system(dod::System{"a", [](dod::View<Position>) {}});
+    g.add_system(dod::System{"b", [](dod::View<Position>) {}});
     EXPECT_TRUE(g.build());
     auto roots_after_first = g.roots();
     EXPECT_TRUE(g.build());
@@ -309,8 +330,8 @@ TEST(SystemGraph, MoveAssignmentResetsSourceBuiltFlag)
 TEST(SystemGraph, MovableAfterBuild)
 {
     dod::SystemGraph g1;
-    auto a = g1.add_system(dod::System{"a", [](dod::Write<Position>) {}});
-    g1.add_system(dod::System{"b", [](dod::Write<Position>) {}});
+    auto a = g1.add_system(dod::System{"a", [](dod::View<Position>) {}});
+    g1.add_system(dod::System{"b", [](dod::View<Position>) {}});
     EXPECT_TRUE(g1.build());
 
     dod::SystemGraph g2 = std::move(g1);

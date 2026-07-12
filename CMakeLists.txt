@@ -54,6 +54,14 @@ if(PROJECT_IS_TOP_LEVEL)
     endif()
 endif()
 
+# ── Benchmarks ────────────────────────────────────────────────
+# Opt-in; measure in a Release build:
+#   cmake -B build-bench -G Ninja -DCMAKE_BUILD_TYPE=Release -DDOD_CORE_BENCHMARKS=ON
+option(DOD_CORE_BENCHMARKS "Build dod_core micro-benchmarks" OFF)
+if(PROJECT_IS_TOP_LEVEL AND DOD_CORE_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
+
 # ── Install ───────────────────────────────────────────────────
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)

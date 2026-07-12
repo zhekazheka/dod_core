@@ -15,6 +15,7 @@ Components and systems are fully extensible from outside the library.
 
 ## Build
 
+- C++23; `-fno-exceptions -fno-rtti` as PUBLIC flags (solution-wide policy, see solution root CLAUDE.md): errors are values (`std::expected`), bugs are `DOD_ASSERT`s
 - Static library output: `libdod_core.a`
 - Dependencies: EnTT, Google Test (both via CMake FetchContent)
 - Downstream consumption: `add_subdirectory()` or `find_package(dod_core)`

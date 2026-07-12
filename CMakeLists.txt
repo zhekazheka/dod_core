@@ -28,7 +28,7 @@ add_library(dod_core STATIC
 )
 add_library(dod::dod_core ALIAS dod_core)
 
-target_compile_features(dod_core PUBLIC cxx_std_20)
+target_compile_features(dod_core PUBLIC cxx_std_23)
 
 target_include_directories(dod_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

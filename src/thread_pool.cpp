@@ -1,6 +1,5 @@
 #include <dod_core/thread_pool.hpp>
 
-#include <algorithm>
 #include <utility>
 
 namespace dod
@@ -8,9 +7,11 @@ namespace dod
 
 ThreadPool::ThreadPool(std::size_t worker_count)
 {
-    const std::size_t n = std::max<std::size_t>(1, worker_count);
-    m_workers.reserve(n);
-    for (std::size_t i = 0; i < n; ++i)
+    // worker_count == 0 is a valid state: a pool with no background threads.
+    // submit_detached then only runs via try_run_one() on the caller, and the
+    // scheduler takes a fully inline execution path (single-threaded).
+    m_workers.reserve(worker_count);
+    for (std::size_t i = 0; i < worker_count; ++i)
     {
         m_workers.emplace_back([this](std::stop_token st) { worker_loop(st); });
     }

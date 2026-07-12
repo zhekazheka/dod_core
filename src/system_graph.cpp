@@ -17,7 +17,8 @@ bool contains(const std::vector<entt::id_type>& haystack, entt::id_type needle) 
 
 SystemGraph::SystemGraph(SystemGraph&& other) noexcept
     : m_nodes{std::move(other.m_nodes)}, m_explicit_edges{std::move(other.m_explicit_edges)},
-      m_roots{std::move(other.m_roots)}, m_built{other.m_built}
+      m_roots{std::move(other.m_roots)},
+      m_topological_order{std::move(other.m_topological_order)}, m_built{other.m_built}
 {
     other.m_built = false;
 }
@@ -29,6 +30,7 @@ SystemGraph& SystemGraph::operator=(SystemGraph&& other) noexcept
         m_nodes = std::move(other.m_nodes);
         m_explicit_edges = std::move(other.m_explicit_edges);
         m_roots = std::move(other.m_roots);
+        m_topological_order = std::move(other.m_topological_order);
         m_built = other.m_built;
         other.m_built = false;
     }
@@ -100,8 +102,9 @@ bool SystemGraph::build()
         }
     }
 
-    if (!is_acyclic())
+    if (!compute_topological_order())
     {
+        m_topological_order.clear();
         return false;
     }
 
@@ -183,7 +186,7 @@ void SystemGraph::add_edge(NodeId from, NodeId to)
     m_nodes[from].dependents.push_back(to);
 }
 
-bool SystemGraph::is_acyclic() const
+bool SystemGraph::compute_topological_order()
 {
     std::vector<std::size_t> incoming(m_nodes.size());
     for (NodeId i = 0; i < m_nodes.size(); ++i)
@@ -191,29 +194,30 @@ bool SystemGraph::is_acyclic() const
         incoming[i] = m_nodes[i].dependencies.size();
     }
 
-    std::vector<NodeId> queue;
-    queue.reserve(m_roots.size());
+    m_topological_order.clear();
+    m_topological_order.reserve(m_nodes.size());
+    // Seed with the roots; the cached order is materialized as a byproduct of
+    // the acyclicity check, so the zero-worker dispatch path can run it
+    // directly with no per-run work.
     for (NodeId id : m_roots)
     {
-        queue.push_back(id);
+        m_topological_order.push_back(id);
     }
 
     std::size_t processed = 0;
-    while (!queue.empty())
+    while (processed < m_topological_order.size())
     {
-        NodeId id = queue.back();
-        queue.pop_back();
-        ++processed;
+        const NodeId id = m_topological_order[processed++];
         for (NodeId d : m_nodes[id].dependents)
         {
             if (--incoming[d] == 0)
             {
-                queue.push_back(d);
+                m_topological_order.push_back(d);
             }
         }
     }
 
-    return processed == m_nodes.size();
+    return m_topological_order.size() == m_nodes.size();
 }
 
 void SystemGraph::check_id(NodeId id) const

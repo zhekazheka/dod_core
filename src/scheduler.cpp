@@ -118,6 +118,20 @@ void dispatch_graph(const SystemGraph& graph, World& world, ThreadPool& pool,
         graph.system(i).prepare(world);
     }
 
+    // Zero-worker pool: run entirely on the calling thread in the cached
+    // topological order. No task queue, no latch, no std::function — this path
+    // allocates nothing per run, which callers that need a single-threaded,
+    // allocation-free tick (e.g. a networking library's per-frame update)
+    // depend on. `counters` is unused here.
+    if (pool.worker_count() == 0)
+    {
+        for (NodeId id : graph.topological_order())
+        {
+            graph.system(id)(world);
+        }
+        return;
+    }
+
     // Reset per-node counters from the graph's static dependency counts.
     for (NodeId i = 0; i < n; ++i)
     {

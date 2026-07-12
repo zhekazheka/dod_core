@@ -252,3 +252,79 @@ TEST(Scheduler, WorkerCountForwardedToPool)
     dod::Scheduler s{make_built_graph(), 3};
     EXPECT_EQ(s.worker_count(), 3u);
 }
+
+// ── Single-threaded (zero-worker) execution ─────────────────
+
+TEST(Scheduler, ZeroWorkersRunsEverySystemOnCallingThread)
+{
+    const std::thread::id main_thread = std::this_thread::get_id();
+    std::atomic<int> counter{0};
+    bool all_on_caller = true;
+
+    dod::SystemGraph g;
+    for (int i = 0; i < 8; ++i)
+    {
+        g.add_system(dod::System{"s", [&]()
+                                 {
+                                     counter.fetch_add(1);
+                                     if (std::this_thread::get_id() != main_thread)
+                                     {
+                                         all_on_caller = false;
+                                     }
+                                 }});
+    }
+    EXPECT_TRUE(g.build());
+
+    dod::Scheduler s{std::move(g), 0};
+    EXPECT_EQ(s.worker_count(), 0u);
+
+    dod::World world;
+    s.run(world);
+    EXPECT_EQ(counter.load(), 8);
+    EXPECT_TRUE(all_on_caller);
+}
+
+TEST(Scheduler, ZeroWorkersRespectsDependencyOrder)
+{
+    // b writes Position, c reads Position -> c must run after b. With zero
+    // workers the cached topological order enforces it.
+    std::vector<std::string> order;
+    dod::SystemGraph g;
+    g.add_system(dod::System{"writer", [&](dod::View<Position>) { order.emplace_back("writer"); }});
+    g.add_system(
+        dod::System{"reader", [&](dod::View<const Position>) { order.emplace_back("reader"); }});
+    EXPECT_TRUE(g.build());
+
+    dod::Scheduler s{std::move(g), 0};
+    dod::World world;
+    s.run(world);
+
+    ASSERT_EQ(order.size(), 2u);
+    EXPECT_EQ(order[0], "writer");
+    EXPECT_EQ(order[1], "reader");
+}
+
+TEST(SystemGraph, TopologicalOrderCoversAllNodesAfterBuild)
+{
+    dod::SystemGraph g;
+    g.add_system(dod::System{"a", [](dod::View<Position>) {}});
+    g.add_system(dod::System{"b", [](dod::View<const Position>) {}});
+    g.add_system(dod::System{"c", []() {}});
+    ASSERT_TRUE(g.build());
+
+    const auto& order = g.topological_order();
+    ASSERT_EQ(order.size(), 3u);
+    // Every node appears exactly once, and dependencies precede dependents.
+    std::vector<std::size_t> position(3);
+    for (std::size_t i = 0; i < order.size(); ++i)
+    {
+        position[order[i]] = i;
+    }
+    for (dod::NodeId node = 0; node < 3; ++node)
+    {
+        for (dod::NodeId dep : g.dependencies(node))
+        {
+            EXPECT_LT(position[dep], position[node]);
+        }
+    }
+}

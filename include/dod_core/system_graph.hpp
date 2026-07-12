@@ -47,6 +47,15 @@ class SystemGraph
     [[nodiscard]] const std::vector<NodeId>& dependencies(NodeId id) const;
     [[nodiscard]] std::size_t dependency_count(NodeId id) const;
 
+    // A valid dependency-respecting execution order, cached at build(). Empty
+    // until built(). Iterating it and running each system in turn is a correct
+    // single-threaded execution (used by the zero-worker dispatch path); the
+    // parallel scheduler uses the adjacency lists directly instead.
+    [[nodiscard]] const std::vector<NodeId>& topological_order() const noexcept
+    {
+        return m_topological_order;
+    }
+
   private:
     struct Node
     {
@@ -57,12 +66,15 @@ class SystemGraph
 
     static bool conflicts(const ResourceAccess& a, const ResourceAccess& b) noexcept;
     void add_edge(NodeId from, NodeId to);
-    [[nodiscard]] bool is_acyclic() const;
+    // Kahn's algorithm: fills m_topological_order and returns true iff the
+    // graph is acyclic (order then covers every node).
+    [[nodiscard]] bool compute_topological_order();
     void check_id(NodeId id) const;
 
     std::vector<Node> m_nodes;
     std::vector<std::pair<NodeId, NodeId>> m_explicit_edges;
     std::vector<NodeId> m_roots;
+    std::vector<NodeId> m_topological_order;
     bool m_built = false;
 };
 

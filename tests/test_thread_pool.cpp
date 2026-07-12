@@ -33,10 +33,19 @@ TEST(ThreadPool, WorkerCountReportsCorrectValue)
     EXPECT_EQ(pool.worker_count(), 4u);
 }
 
-TEST(ThreadPool, WorkerCountClampsToAtLeastOne)
+TEST(ThreadPool, ZeroWorkersSpawnsNoThreads)
 {
+    // A zero-worker pool is a valid state: no background threads. Submitted
+    // tasks run only when the caller drains them via try_run_one().
     dod::ThreadPool pool{0};
-    EXPECT_GE(pool.worker_count(), 1u);
+    EXPECT_EQ(pool.worker_count(), 0u);
+
+    std::atomic<bool> ran{false};
+    pool.submit_detached([&ran] { ran.store(true); });
+    EXPECT_FALSE(ran.load()); // no worker to pick it up
+    EXPECT_TRUE(pool.try_run_one());
+    EXPECT_TRUE(ran.load());
+    EXPECT_FALSE(pool.try_run_one());
 }
 
 TEST(ThreadPool, DetachedTaskRuns)
